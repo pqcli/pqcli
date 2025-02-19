@@ -18,7 +18,7 @@ This generates a complete .jar file in the `/target` dir.
 Example
 
 ```
-java -jar .\pqcli.jar cert Dilithium 3 Dilithium 3
+java -jar .\pqcli.jar cert -newkey Dilithium -kl 3 -sig Dilithium -sl 3
 ```
 Generates a Dilithium keypair with Dilithium signature.
 
@@ -43,8 +43,9 @@ Option | Description
 --- | ---
 -ca | The certificate of the authority that is included in the issuer field of the certificate. If omitted, the certificate is self-signed.
 -cakey | The private key of the CA, used to sign the certificate.
+-days | The validity period of the certificate from today in days.
 -key | The public key to certify. If omitted, a suitable keypair is generated.
--newkey | The signature algorithm(s) to use for the newly generated key
+-newkey | The algorithm(s) to use for the newly generated key
 -sig | The signature algorithm(s) to use. Algorithms are separated by `,`, key size is speficied by `:`. (e.g. `rsa:3072,dilithium:3` for a PQC hybrid signature using 3072 byte RSA and Dilithium level 3 keys) 
 -subj | The subject DN to include in the certificate (OpenSSL format, e.g. `/CN=Test/DC=testdc`)
 

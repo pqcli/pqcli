@@ -13,6 +13,10 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
 
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -23,27 +27,27 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Base64;
+import java.util.concurrent.Callable;
 import java.util.Date;
 
-public class CertificateGenerator {
+@Command(name="cert", description="Generates an X.509 v3 certificate with a public/private key pair")
+public class CertificateGenerator implements Callable<Integer> {
 
-	public static void main(String[] args) {
-        if (args.length < 5) {
-            System.err.println("Usage: java -jar pqccert.jar cert <SignatureAlgorithm> <SignatureKeyLength> <KeyAlgorithm> <KeyLength>");
-            return;
-        }
+    @Option(names = { "-sig", "-s" }, description = "Signature algorithm (e.g. SHA256withRSA or SHA3-512withDilithium)", required = true)
+    private String signatureAlgorithm;
 
-        String cmd = args[0];
-        if (!cmd.equals("cert")) {
-            System.err.println("Usage: java -jar pqccert.jar cert <SignatureAlgorithm> <SignatureKeyLength> <KeyAlgorithm> <KeyLength>");
-            return;
-        }
+    // temporary for testing, to be integrated in -sig, e.g. -sig rsa:3072 or dilithium:3
+    @Option(names = { "-siglen", "-sl" }, description = "Signature key length (e.g. 2048 for RSA signature)", required = true)
+    private String signatureKeyLength;
 
-        String signatureAlgorithm = args[1];      // z. B. SHA256withRSA oder SHA3-512withDilithium
-        String signatureKeyLength = args[2];      // z. B. 2048 für RSA-Signatur
-        String keyAlgorithm = args[3];            // z. B. RSA, EC, DSA oder Dilithium
-        String keyLength = args[4];               // z. B. 2048 für RSA-Schlüssel oder 3 für Dilithium
+    @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA, EC, DSA or Dilithium)", required = true)
+    private String keyAlgorithm;
 
+    @Option(names = { "-newkeylen", "-kl" }, description = "Key length (e.g. 2048 for RSA key or 3 for Dilithium)", required = true)
+    private String keyLength;
+
+	//public static void main(String[] args) {
+    public Integer call() throws Exception {
         try {
             // BouncyCastle als Provider hinzufügen
             Security.addProvider(new BouncyCastleProvider());
@@ -77,7 +81,9 @@ public class CertificateGenerator {
         } catch (Exception e) {
             System.err.println("Fehler bei der Zertifikatserstellung: " + e.getMessage());
             e.printStackTrace();
+            return 1;
         }
+        return 0;
 	}
 	
 	 private static String getKeyAlgorithmForSignature(String signatureAlgorithm) {

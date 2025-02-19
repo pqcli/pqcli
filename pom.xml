@@ -40,6 +40,12 @@
             <version>1.78</version>
         </dependency>
 
+        <!-- picocli -->
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.6</version>
+        </dependency>
 
     </dependencies>
     <build>
@@ -54,7 +60,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>pqcli.CertificateGenerator</mainClass>
+                            <mainClass>pqcli.PqCliCommand</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -64,7 +70,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>pqcli.CertificateGenerator</mainClass>
+                            <mainClass>pqcli.PqCliCommand</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
