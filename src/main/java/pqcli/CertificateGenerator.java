@@ -11,7 +11,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
-import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -24,7 +23,6 @@ import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.security.spec.ECGenParameterSpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 import java.util.Date;
@@ -39,7 +37,7 @@ public class CertificateGenerator implements Callable<Integer> {
     //@Option(names = { "-siglen", "-sl" }, description = "Signature key length (e.g. 2048 for RSA signature)", required = true)
     //private String signatureKeyLength;
 
-    @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA, EC, DSA or Dilithium)", required = true)
+    @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA:4096, EC, DSA or Dilithium:3)", required = true)
     private String keyAlgorithm;
 
     //@Option(names = { "-newkeylen", "-kl" }, description = "Key length (e.g. 2048 for RSA key or 3 for Dilithium)", required = true)
@@ -47,6 +45,7 @@ public class CertificateGenerator implements Callable<Integer> {
 
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
+        ProviderSetup.setupProvider();
         try {
             // BouncyCastle als Provider hinzufügen
             Security.addProvider(new BouncyCastleProvider());
@@ -61,10 +60,7 @@ public class CertificateGenerator implements Callable<Integer> {
             System.out.println("Successfully loaded BCPQC provider: " + provider.getInfo());
 
             // Generate key pair for the public key of the certificate
-            AlgorithmWithParameters algorithm = getAlgorithmParts(keyAlgorithm);
-            String algorithmType = algorithm.algorithm;
-            String keyLength = algorithm.keySizeOrCurve;
-            KeyPair keyPair = generateKeyPair(algorithmType, keyLength);
+            KeyPair keyPair = KeyGenerator.generateKeyPair(keyAlgorithm);
 
             boolean isSelfSigned = true; // TODO: Only if -ca is not set
 
@@ -72,21 +68,19 @@ public class CertificateGenerator implements Callable<Integer> {
             // TODO: The signing key should be importable via the -cakey option
             KeyPair signatureKeyPair;
             if (isSelfSigned) {
-                signatureAlgorithm = getKeyAlgorithmForSignature(algorithmType);
+                //signatureAlgorithm = getKeyAlgorithmForSignature(algorithmType);
                 signatureKeyPair = keyPair;
             } else {
-                AlgorithmWithParameters sigAlgorithm = getAlgorithmParts(signatureAlgorithm);
-                String sigAlgorithmType = sigAlgorithm.algorithm;
-                String sigKeyLength = algorithm.keySizeOrCurve;
-                signatureKeyPair = generateKeyPair(getKeyAlgorithmForSignature(sigAlgorithmType), sigKeyLength);
+                signatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithm);
             }
+            signatureAlgorithm = signatureKeyPair.getPrivate().getAlgorithm();
 
             // Zertifikat erstellen
             X509Certificate certificate = generateCertificate(signatureAlgorithm, signatureKeyPair);
 
             // Dateien speichern
-            saveKeyToFile("private_key.pem", keyPair.getPrivate());
-            saveKeyToFile("public_key.pem", keyPair.getPublic());
+            KeyGenerator.saveKeyToFile("private_key.pem", keyPair.getPrivate());
+            KeyGenerator.saveKeyToFile("public_key.pem", keyPair.getPublic());
             saveCertificateToFile("certificate.pem", certificate);
 
             System.out.println("Zertifikat und Schlüssel erfolgreich gespeichert!");
@@ -106,75 +100,6 @@ public class CertificateGenerator implements Callable<Integer> {
         if (signatureAlgorithm.contains("DSA")) return "DSA";
         if (signatureAlgorithm.contains("Dilithium")) return "Dilithium";
         throw new IllegalArgumentException("Unknown signature algorithm: " + signatureAlgorithm);
-    }
-
-	private static AlgorithmWithParameters getAlgorithmParts(String algorithm) {
-        String[] parts = algorithm.split(":");
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Invalid algorithm syntax: " + algorithm + " (Expected format: <algorithm>:<keyLength>)");
-        }
-        AlgorithmWithParameters algorithmWithParams = new AlgorithmWithParameters(parts[0], parts[1]);
-        return algorithmWithParams;
-    }
-	
-    /**
-     * Generiert ein Schlüsselpaar basierend auf dem Algorithmus und der Schlüssellänge.
-     */
-    private static KeyPair generateKeyPair(String algorithm, String curveOrKeyLength) 
-            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm, "BC");
-
-        if (algorithm.equalsIgnoreCase("EC")) {
-            // Initialisierung mit der angegebenen Kurve (z. B. prime256v1)
-            keyPairGenerator.initialize(new ECGenParameterSpec(curveOrKeyLength), new SecureRandom());
-        } else if (algorithm.equalsIgnoreCase("RSA")) {
-            // Initialisierung für RSA mit der angegebenen Schlüssellänge
-            int keyLength = Integer.parseInt(curveOrKeyLength);
-            if (keyLength < 1024) {
-                throw new IllegalArgumentException("RSA-Schlüssellänge muss mindestens 1024 Bit betragen.");
-            }
-            keyPairGenerator.initialize(keyLength, new SecureRandom());
-        } else if (algorithm.equalsIgnoreCase("DSA")) {
-            // Initialisierung für DSA mit der angegebenen Schlüssellänge
-            int keyLength = Integer.parseInt(curveOrKeyLength);
-            if (keyLength < 1024) {
-                throw new IllegalArgumentException("DSA-Schlüssellänge muss mindestens 1024 Bit betragen.");
-            }
-            keyPairGenerator.initialize(keyLength, new SecureRandom());   
-        } 
-        else if (algorithm.equalsIgnoreCase("Dilithium")) {
-            // Initialisierung für PQC-Algorithmus CRYSTALS-Dilithium
-            keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
-
-            // Wähle Dilithium-Sicherheitsstufe (2, 3, 5 verfügbar)
-            int level = Integer.parseInt(curveOrKeyLength);
-            DilithiumParameterSpec spec;
-            switch (level) {
-                case 2:
-                    spec = DilithiumParameterSpec.dilithium2;
-                    break;
-                case 3:
-                    spec = DilithiumParameterSpec.dilithium3;
-                    break;
-                case 5:
-                    spec = DilithiumParameterSpec.dilithium5;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Ungültige Dilithium-Sicherheitsstufe. Wähle 2, 3 oder 5. Gewählt wurde " + level);
-            }
-
-            keyPairGenerator.initialize(spec, new SecureRandom());
-
-        } else {
-            throw new IllegalArgumentException("Algorithmus nicht unterstützt: " + algorithm);
-        }
-         
-        
-        
-        
-
-        return keyPairGenerator.generateKeyPair();
     }
 
 
@@ -200,23 +125,6 @@ public class CertificateGenerator implements Callable<Integer> {
         return new JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder);
     }
 
-    private static void saveKeyToFile(String fileName, Key key) throws IOException {
-        try (OutputStream os = new FileOutputStream(fileName)) {
-            String encodedKey = Base64.getEncoder().encodeToString(key.getEncoded());
-            if (key instanceof PrivateKey) {
-                os.write(("-----BEGIN PRIVATE KEY-----\n").getBytes());
-            } else {
-                os.write(("-----BEGIN PUBLIC KEY-----\n").getBytes());
-            }
-            os.write(encodedKey.getBytes());
-            if (key instanceof PrivateKey) {
-                os.write(("\n-----END PRIVATE KEY-----\n").getBytes());
-            } else {
-                os.write(("\n-----END PUBLIC KEY-----\n").getBytes());
-            }
-        }
-    }
-
     private static void saveCertificateToFile(String fileName, X509Certificate certificate) throws IOException, CertificateEncodingException {
         try (OutputStream os = new FileOutputStream(fileName)) {
             os.write(("-----BEGIN CERTIFICATE-----\n").getBytes());
@@ -226,4 +134,3 @@ public class CertificateGenerator implements Callable<Integer> {
         }
     }
 }
-

@@ -13,7 +13,8 @@ import picocli.CommandLine.Parameters;
     mixinStandardHelpOptions = true,
     version = "PQCLI 0.1.0",
     subcommands = {
-        CertificateGenerator.class
+        CertificateGenerator.class,
+        KeyGenerator.class
     }) 
 public class PqCliCommand implements Callable<Integer> {
     @Override
