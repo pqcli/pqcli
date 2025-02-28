@@ -18,7 +18,7 @@ This generates a complete .jar file in the `/target` dir.
 Example
 
 ```
-java -jar .\pqcli.jar cert -newkey Dilithium -kl 3 -sig Dilithium -sl 3
+java -jar .\pqcli.jar cert -newkey Dilithium:3 -sig Dilithium:3
 ```
 Generates a Dilithium keypair with Dilithium signature.
 
@@ -48,5 +48,12 @@ Option | Description
 -newkey | The algorithm(s) to use for the newly generated key
 -sig | The signature algorithm(s) to use. Algorithms are separated by `,`, key size is speficied by `:`. (e.g. `rsa:3072,dilithium:3` for a PQC hybrid signature using 3072 byte RSA and Dilithium level 3 keys) 
 -subj | The subject DN to include in the certificate (OpenSSL format, e.g. `/CN=Test/DC=testdc`)
+
+#### key API
+
+(initial idea)
+Option | Description
+--- | ---
+-newkey / -new / -t | The algorithm(s) to use to generate a new keypair.
 
 ## TeX sources, example code and files for the PQC hybrid certificate paper

@@ -13,7 +13,6 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
 
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -33,18 +32,18 @@ import java.util.Date;
 @Command(name="cert", description="Generates an X.509 v3 certificate with a public/private key pair")
 public class CertificateGenerator implements Callable<Integer> {
 
-    @Option(names = { "-sig", "-s" }, description = "Signature algorithm (e.g. SHA256withRSA or SHA3-512withDilithium)", required = true)
+    @Option(names = { "-sig", "-s" }, description = "Signature algorithm (e.g. SHA256withRSA or SHA3-512withDilithium)")
     private String signatureAlgorithm;
 
     // temporary for testing, to be integrated in -sig, e.g. -sig rsa:3072 or dilithium:3
-    @Option(names = { "-siglen", "-sl" }, description = "Signature key length (e.g. 2048 for RSA signature)", required = true)
-    private String signatureKeyLength;
+    //@Option(names = { "-siglen", "-sl" }, description = "Signature key length (e.g. 2048 for RSA signature)", required = true)
+    //private String signatureKeyLength;
 
     @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA, EC, DSA or Dilithium)", required = true)
     private String keyAlgorithm;
 
-    @Option(names = { "-newkeylen", "-kl" }, description = "Key length (e.g. 2048 for RSA key or 3 for Dilithium)", required = true)
-    private String keyLength;
+    //@Option(names = { "-newkeylen", "-kl" }, description = "Key length (e.g. 2048 for RSA key or 3 for Dilithium)", required = true)
+    //private String keyLength;
 
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
@@ -53,19 +52,34 @@ public class CertificateGenerator implements Callable<Integer> {
             Security.addProvider(new BouncyCastleProvider());
             Security.addProvider(new BouncyCastlePQCProvider());
 
-            // Debugging: Provider prüfen
+            // Debugging: Check if BouncyCastle Provider is available
             Provider provider = Security.getProvider("BCPQC");
             if (provider == null) {
-                System.err.println("Fehler: BCPQC Provider nicht gefunden!");
-            } else {
-                System.out.println("BCPQC Provider erfolgreich geladen: " + provider.getInfo());
+                System.err.println("Error: BCPQC Provider not available!");
+                return 1;
             }
+            System.out.println("Successfully loaded BCPQC provider: " + provider.getInfo());
 
-            // Schlüsselpaar für den öffentlichen Schlüssel des Zertifikats generieren
-            KeyPair keyPair = generateKeyPair(keyAlgorithm, keyLength);
+            // Generate key pair for the public key of the certificate
+            AlgorithmWithParameters algorithm = getAlgorithmParts(keyAlgorithm);
+            String algorithmType = algorithm.algorithm;
+            String keyLength = algorithm.keySizeOrCurve;
+            KeyPair keyPair = generateKeyPair(algorithmType, keyLength);
 
-            // Schlüsselpaar für die Signatur generieren
-            KeyPair signatureKeyPair = generateKeyPair(getKeyAlgorithmForSignature(signatureAlgorithm), signatureKeyLength);
+            boolean isSelfSigned = true; // TODO: Only if -ca is not set
+
+            // Generate signing key pair
+            // TODO: The signing key should be importable via the -cakey option
+            KeyPair signatureKeyPair;
+            if (isSelfSigned) {
+                signatureAlgorithm = getKeyAlgorithmForSignature(algorithmType);
+                signatureKeyPair = keyPair;
+            } else {
+                AlgorithmWithParameters sigAlgorithm = getAlgorithmParts(signatureAlgorithm);
+                String sigAlgorithmType = sigAlgorithm.algorithm;
+                String sigKeyLength = algorithm.keySizeOrCurve;
+                signatureKeyPair = generateKeyPair(getKeyAlgorithmForSignature(sigAlgorithmType), sigKeyLength);
+            }
 
             // Zertifikat erstellen
             X509Certificate certificate = generateCertificate(signatureAlgorithm, signatureKeyPair);
@@ -79,7 +93,7 @@ public class CertificateGenerator implements Callable<Integer> {
             System.out.println(certificate);
 
         } catch (Exception e) {
-            System.err.println("Fehler bei der Zertifikatserstellung: " + e.getMessage());
+            System.err.println("Error during certificate generation: " + e.getMessage());
             e.printStackTrace();
             return 1;
         }
@@ -87,14 +101,21 @@ public class CertificateGenerator implements Callable<Integer> {
 	}
 	
 	 private static String getKeyAlgorithmForSignature(String signatureAlgorithm) {
-	        if (signatureAlgorithm.contains("RSA")) return "RSA";
-	        if (signatureAlgorithm.contains("ECDSA")) return "EC";
-	        if (signatureAlgorithm.contains("DSA")) return "DSA";
-	        if (signatureAlgorithm.contains("Dilithium")) return "Dilithium";
-	        throw new IllegalArgumentException("Unbekannter Signaturalgorithmus: " + signatureAlgorithm);
-	    }
+        if (signatureAlgorithm.contains("RSA")) return "RSA";
+        if (signatureAlgorithm.contains("ECDSA")) return "EC";
+        if (signatureAlgorithm.contains("DSA")) return "DSA";
+        if (signatureAlgorithm.contains("Dilithium")) return "Dilithium";
+        throw new IllegalArgumentException("Unknown signature algorithm: " + signatureAlgorithm);
+    }
 
-	
+	private static AlgorithmWithParameters getAlgorithmParts(String algorithm) {
+        String[] parts = algorithm.split(":");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid algorithm syntax: " + algorithm + " (Expected format: <algorithm>:<keyLength>)");
+        }
+        AlgorithmWithParameters algorithmWithParams = new AlgorithmWithParameters(parts[0], parts[1]);
+        return algorithmWithParams;
+    }
 	
     /**
      * Generiert ein Schlüsselpaar basierend auf dem Algorithmus und der Schlüssellänge.
