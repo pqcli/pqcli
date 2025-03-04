@@ -1,5 +1,13 @@
-# pqcli
-CLI wrapper for BouncyCastle with a particular focus on post-quantum hybrid certificates.
+![pqcli](.gh-assets/pqcli.png | width=150)
+
+<div align="center">
+
+**CLI wrapper for BouncyCastle with a particular focus on post-quantum hybrid certificates.**
+
+</div>
+
+> [!CAUTION]
+> pqcli is currently intended for research purposes and in an early testing state. Do not use it in production.
 
 The goal is to create an easily usable interface to carry out cryptographic operations using the BouncyCastle library.
 
@@ -72,9 +80,7 @@ DSA | 1024-4096 | 2048
 Ed25519 | - | -
 Ed448 | - | -
 Dilithium | 2, 3, 5 | 3
-SPHINCS+ | 128s, 128f, 192s, 192f, 256s, 256f | 192 (s)
+SPHINCS+ | 128s, 128f, 192s, 192f, 256s, 256f (all SHA-2) | 192 (s)
 
 Dilithium and SPHINCS+ have been standardised by NIST as FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA), respectively.
 The authors did not yet verify that the BC v1.80 implementation of these algorithms is already fully standard-compliant.
-
-## TeX sources, example code and files for the PQC hybrid certificate paper
