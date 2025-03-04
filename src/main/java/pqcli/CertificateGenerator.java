@@ -33,15 +33,14 @@ public class CertificateGenerator implements Callable<Integer> {
     @Option(names = { "-sig", "-s" }, description = "Signature algorithm (e.g. SHA256withRSA or SHA3-512withDilithium)")
     private String signatureAlgorithm;
 
-    // temporary for testing, to be integrated in -sig, e.g. -sig rsa:3072 or dilithium:3
-    //@Option(names = { "-siglen", "-sl" }, description = "Signature key length (e.g. 2048 for RSA signature)", required = true)
-    //private String signatureKeyLength;
-
     @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA:4096, EC, DSA or Dilithium:3)", required = true)
     private String keyAlgorithm;
 
     @Option(names = { "-days", "-d" }, description = "Certificate validity in days", required = false, defaultValue = "365")
     private String validityDays;
+
+    @Option(names = { "-subj", "-subject" }, description = "Certificate subject in OpenSSL format", required = false, defaultValue = "CN=PQCLI Test Certificate, C=DE")
+    private String subject;
 
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
@@ -57,6 +56,7 @@ public class CertificateGenerator implements Callable<Integer> {
                     return 1;
                 }
             }
+            subject = dnOpensslToX500(subject);
 
             String[] keyAlgorithms = getAlgorithmsFromStr(keyAlgorithm);
             int nKeyAlgorithms = keyAlgorithms.length;
@@ -95,10 +95,10 @@ public class CertificateGenerator implements Callable<Integer> {
             // Create X.509 certificate
             X509Certificate certificate;
             if (nKeyAlgorithms == 1) {
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, validityDaysD);
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, subject, validityDaysD);
             } else {
                 String altSignatureAlgorithm = getSuitableSignatureAlgorithm(altKeyAlgorithm);
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair, validityDaysD);
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair, subject, validityDaysD);
             }
 
 
@@ -152,9 +152,17 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String altSignatureAlgo, KeyPair altKeyPair, double validityDays) throws Exception {
-        X500Name issuerName = new X500Name("CN=PQCLI Test Certificate, O=pqcli, C=DE");
-        X500Name subjectName = issuerName;
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair,
+                                                       String altSignatureAlgo, KeyPair altKeyPair,
+                                                       String subject, double validityDays)
+            throws Exception {
+        X500Name subjectName;
+        try {
+            subjectName = new X500Name(subject);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid subject name: " + e.getMessage());
+        }
+        X500Name issuerName = subjectName;
         BigInteger serialNumber = BigInteger.valueOf(new SecureRandom().nextInt(Integer.MAX_VALUE));
         Date notBefore = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000); // Current time - 1 day
         Date notAfter = new Date(System.currentTimeMillis() + 1000L * (long)(validityDays * 60.0 * 60.0 * 24.0)); // Current time + validityDays
@@ -186,8 +194,8 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate with a single signature algorithm.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, double validityDays) throws Exception {
-        return generateCertificate(signatureAlgorithm, keyPair, "", null, validityDays);
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String subject, double validityDays) throws Exception {
+        return generateCertificate(signatureAlgorithm, keyPair, "", null, subject, validityDays);
     }
 
     private static void saveCertificateToFile(String fileName, X509Certificate certificate) throws IOException, CertificateEncodingException {
@@ -205,5 +213,16 @@ public class CertificateGenerator implements Callable<Integer> {
                      .filter(s -> !s.trim().isEmpty()) // Remove empty and whitespace-only strings
                      .toArray(String[]::new);
 
+    }
+
+    // Convert OpenSSL DN (/CN=Test/C=DE) to X.500 format (CN=Test,C=DE)
+    private static String dnOpensslToX500(String dn) {
+        String x500Dn = dn.replace('/', ',');
+        x500Dn = x500Dn.trim();
+        // remove leading comma
+        if (x500Dn.startsWith(",")) {
+            x500Dn = x500Dn.substring(1);
+        }
+        return x500Dn;
     }
 }

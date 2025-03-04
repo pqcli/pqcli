@@ -18,7 +18,7 @@ This generates a complete .jar file in the `/target` dir.
 Examples
 
 ```
-java -jar .\pqcli.jar cert -newkey Dilithium:3
+java -jar .\pqcli.jar cert -newkey Dilithium:3 -subj CN=Solanum
 ```
 Generates a self-signed PQC X.509 Certificate using a Dilithium key pair.
 
@@ -32,10 +32,10 @@ Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as tradi
 
 This is an overview of the initial idea how the tool might be structured.
 
-Command | Description
---- | ---
-cert | Request a new X.509 public-key certificate
-key | Generate cryptographic key(pairs)
+Command | Description | Impl.
+--- | --- | ---
+cert | Request a new X.509 public-key certificate | ✔️
+key | Generate cryptographic key(pairs) | ✔️
 csr | Generate a certificate signing request
 (crl) | Generate a certificate revocation list
 verify | Verify a certificate chain or signature (depending on parameters)
@@ -45,7 +45,7 @@ view | Displays the contents of e.g. a certificate or key metadata in human-read
 #### cert API
 
 (not yet implemented, initial idea)
-Option | Description | Implemented
+Option | Description | Impl.
 --- | --- | ---
 -ca | The certificate of the authority that is included in the issuer field of the certificate. If omitted, the certificate is self-signed. |
 -cakey | The private key of the CA, used to sign the certificate. |
@@ -53,12 +53,12 @@ Option | Description | Implemented
 -key | The public key to certify. If omitted, a suitable keypair is generated. |
 -newkey | The algorithm(s) to use for the newly generated key. Algorithms are separated by `,`, key size is speficied by `:`. (e.g. `rsa:3072,dilithium:3` for a PQC hybrid signature using 3072 byte RSA and Dilithium level 3 keys) | ✔️
 -sig | The algorithm(s) to use for the signing key(s). |
--subj | The subject DN to include in the certificate (OpenSSL format, e.g. `/CN=Test/DC=testdc`) |
+-subj | The subject DN to include in the certificate (supports both OpenSSL and X500 format, e.g. `/CN=Test/DC=testdc` or `CN=Test, DC=testdc`) | ✔️
 
 #### key API
 
 (initial idea)
-Option | Description | Implemented
+Option | Description | Impl.
 --- | --- | ---
 -newkey / -new / -t | The algorithm(s) to use to generate a new keypair, e.g. `rsa:2048`. | ✔️
 
