@@ -40,13 +40,24 @@ public class CertificateGenerator implements Callable<Integer> {
     @Option(names = { "-newkey", "-nk" }, description = "Key algorithm (e.g. RSA:4096, EC, DSA or Dilithium:3)", required = true)
     private String keyAlgorithm;
 
-    //@Option(names = { "-newkeylen", "-kl" }, description = "Key length (e.g. 2048 for RSA key or 3 for Dilithium)", required = true)
-    //private String keyLength;
+    @Option(names = { "-days", "-d" }, description = "Certificate validity in days", required = false, defaultValue = "365")
+    private String validityDays;
 
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
         ProviderSetup.setupProvider();
         try {
+            double validityDaysD = 0;
+            try {
+                validityDaysD = Double.parseDouble(validityDays);
+            }
+            finally {
+                if (validityDaysD < 0.04) {
+                    System.err.println("Error: Invalid validity period specified! Must be at least 0.04 days.");
+                    return 1;
+                }
+            }
+
             String[] keyAlgorithms = getAlgorithmsFromStr(keyAlgorithm);
             int nKeyAlgorithms = keyAlgorithms.length;
             if (nKeyAlgorithms == 0) {
@@ -84,10 +95,10 @@ public class CertificateGenerator implements Callable<Integer> {
             // Create X.509 certificate
             X509Certificate certificate;
             if (nKeyAlgorithms == 1) {
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair);
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, validityDaysD);
             } else {
                 String altSignatureAlgorithm = getSuitableSignatureAlgorithm(altKeyAlgorithm);
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair);
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair, validityDaysD);
             }
 
 
@@ -141,12 +152,12 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String altSignatureAlgo, KeyPair altKeyPair) throws Exception {
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String altSignatureAlgo, KeyPair altKeyPair, double validityDays) throws Exception {
         X500Name issuerName = new X500Name("CN=PQCLI Test Certificate, O=pqcli, C=DE");
         X500Name subjectName = issuerName;
-        BigInteger serialNumber = BigInteger.valueOf(new SecureRandom().nextInt());
+        BigInteger serialNumber = BigInteger.valueOf(new SecureRandom().nextInt(Integer.MAX_VALUE));
         Date notBefore = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000); // Current time - 1 day
-        Date notAfter = new Date(System.currentTimeMillis() + 365 * 24 * 60 * 60 * 1000L); // Valid for 1 year
+        Date notAfter = new Date(System.currentTimeMillis() + 1000L * (long)(validityDays * 60.0 * 60.0 * 24.0)); // Current time + validityDays
 
         X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                 issuerName, serialNumber, notBefore, notAfter, subjectName, keyPair.getPublic());
@@ -175,8 +186,8 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate with a single signature algorithm.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair) throws Exception {
-        return generateCertificate(signatureAlgorithm, keyPair, "", null);
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, double validityDays) throws Exception {
+        return generateCertificate(signatureAlgorithm, keyPair, "", null, validityDays);
     }
 
     private static void saveCertificateToFile(String fileName, X509Certificate certificate) throws IOException, CertificateEncodingException {
