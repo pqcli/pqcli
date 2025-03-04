@@ -22,7 +22,7 @@ import picocli.CommandLine.Option;
 
 @Command(name="key", description="Generates a public/private key pair")
 public class KeyGenerator implements Callable<Integer> {
-    @Option(names = { "-newkey", "-nk", "-t" }, description = "Key algorithm (e.g. RSA:4096, EC, DSA or Dilithium:3)", required = true)
+    @Option(names = { "-newkey", "-nk", "-new", "-t" }, description = "Key algorithm (e.g. RSA:4096, EC, DSA or Dilithium:3)", required = true)
     private String keyAlgorithm;
 
     public Integer call() throws Exception {
@@ -41,7 +41,7 @@ public class KeyGenerator implements Callable<Integer> {
 
     public static KeyPair generateKeyPair(String algorithmAndLength) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-        AlgorithmWithParameters algorithm = getAlgorithmParts(algorithmAndLength);
+        AlgorithmWithParameters algorithm = AlgorithmWithParameters.getAlgorithmParts(algorithmAndLength);
         String algorithmType = algorithm.algorithm;
         String keyLength = algorithm.keySizeOrCurve;
         return generateKeyPair(algorithmType, keyLength);
@@ -101,15 +101,6 @@ public class KeyGenerator implements Callable<Integer> {
         }
 
         return keyPairGenerator.generateKeyPair();
-    }
-
-    private static AlgorithmWithParameters getAlgorithmParts(String algorithm) {
-        String[] parts = algorithm.split(":");
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Invalid algorithm syntax: " + algorithm + " (Expected format: <algorithm>:<keyLength>)");
-        }
-        AlgorithmWithParameters algorithmWithParams = new AlgorithmWithParameters(parts[0], parts[1]);
-        return algorithmWithParams;
     }
 
     public static void saveKeyToFile(String fileName, Key key) throws IOException {

@@ -7,10 +7,8 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -23,6 +21,8 @@ import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.security.spec.RSAPrivateKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 import java.util.Date;
@@ -47,43 +47,60 @@ public class CertificateGenerator implements Callable<Integer> {
     public Integer call() throws Exception {
         ProviderSetup.setupProvider();
         try {
-            // BouncyCastle als Provider hinzufügen
-            Security.addProvider(new BouncyCastleProvider());
-            Security.addProvider(new BouncyCastlePQCProvider());
-
-            // Debugging: Check if BouncyCastle Provider is available
-            Provider provider = Security.getProvider("BCPQC");
-            if (provider == null) {
-                System.err.println("Error: BCPQC Provider not available!");
+            String[] keyAlgorithms = getAlgorithmsFromStr(keyAlgorithm);
+            int nKeyAlgorithms = keyAlgorithms.length;
+            if (nKeyAlgorithms == 0) {
+                System.err.println("Error: No key algorithm specified!");
                 return 1;
             }
-            System.out.println("Successfully loaded BCPQC provider: " + provider.getInfo());
-
-            // Generate key pair for the public key of the certificate
-            KeyPair keyPair = KeyGenerator.generateKeyPair(keyAlgorithm);
+            if (nKeyAlgorithms > 2) {
+                System.err.println("Error: More than 2 key algorithms are not supported yet!");
+                return 1;
+            }
+            // Generate key pair(s) for the public key(s) of the certificate
+            AlgorithmWithParameters keyAlgorithm = AlgorithmWithParameters.getAlgorithmParts(keyAlgorithms[0]);
+            KeyPair keyPair = KeyGenerator.generateKeyPair(keyAlgorithms[0]);
+            AlgorithmWithParameters altKeyAlgorithm = null;
+            KeyPair altKeyPair = null;
+            if (nKeyAlgorithms > 1) {
+                altKeyAlgorithm = AlgorithmWithParameters.getAlgorithmParts(keyAlgorithms[1]);
+                altKeyPair = KeyGenerator.generateKeyPair(keyAlgorithms[1]);
+            }
 
             boolean isSelfSigned = true; // TODO: Only if -ca is not set
 
             // Generate signing key pair
             // TODO: The signing key should be importable via the -cakey option
-            KeyPair signatureKeyPair;
+            KeyPair signatureKeyPair, altSignatureKeyPair = null;
             if (isSelfSigned) {
                 //signatureAlgorithm = getKeyAlgorithmForSignature(algorithmType);
                 signatureKeyPair = keyPair;
+                if (nKeyAlgorithms > 1) altSignatureKeyPair = altKeyPair;
             } else {
                 signatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithm);
             }
-            signatureAlgorithm = signatureKeyPair.getPrivate().getAlgorithm();
+            signatureAlgorithm = getSuitableSignatureAlgorithm(keyAlgorithm);
 
-            // Zertifikat erstellen
-            X509Certificate certificate = generateCertificate(signatureAlgorithm, signatureKeyPair);
+            // Create X.509 certificate
+            X509Certificate certificate;
+            if (nKeyAlgorithms == 1) {
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair);
+            } else {
+                String altSignatureAlgorithm = getSuitableSignatureAlgorithm(altKeyAlgorithm);
+                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair);
+            }
 
-            // Dateien speichern
+
+            // Save certificate and key(s) to files
             KeyGenerator.saveKeyToFile("private_key.pem", keyPair.getPrivate());
             KeyGenerator.saveKeyToFile("public_key.pem", keyPair.getPublic());
+            if (nKeyAlgorithms > 1) {
+                KeyGenerator.saveKeyToFile("private_key_alt.pem", altKeyPair.getPrivate());
+                KeyGenerator.saveKeyToFile("public_key_alt.pem", altKeyPair.getPublic());
+            }
             saveCertificateToFile("certificate.pem", certificate);
 
-            System.out.println("Zertifikat und Schlüssel erfolgreich gespeichert!");
+            System.out.println("Certificate and key saved successfully!");
             System.out.println(certificate);
 
         } catch (Exception e) {
@@ -94,35 +111,68 @@ public class CertificateGenerator implements Callable<Integer> {
         return 0;
 	}
 	
-	 private static String getKeyAlgorithmForSignature(String signatureAlgorithm) {
-        if (signatureAlgorithm.contains("RSA")) return "RSA";
-        if (signatureAlgorithm.contains("ECDSA")) return "EC";
-        if (signatureAlgorithm.contains("DSA")) return "DSA";
-        if (signatureAlgorithm.contains("Dilithium")) return "Dilithium";
-        throw new IllegalArgumentException("Unknown signature algorithm: " + signatureAlgorithm);
+	 private static String getSuitableSignatureAlgorithm(AlgorithmWithParameters keyAlgorithm) {
+        String name = keyAlgorithm.algorithm.toLowerCase();
+        String params = keyAlgorithm.keySizeOrCurve;
+
+        if (name.contains("rsa")) {
+            boolean rsaPss = false;
+            String sigAlgo = "SHA256withRSA";
+            int keySize = Integer.parseInt(params);
+            if (keySize >= 4096) {
+                sigAlgo = "SHA512withRSA";
+            } else if (keySize >= 3072) {
+                sigAlgo = "SHA384withRSA";
+            }
+            if (rsaPss) sigAlgo = sigAlgo + "andMGF1";
+            return sigAlgo;
+        } else if (name.contains("ec")) {
+            return "SHA256withECDSA";
+        } else if (name.contains("dsa")) {
+            return "SHA256withDSA";
+        } else if (name.contains("dilithium")) {
+            return "Dilithium";
+        }
+
+        throw new IllegalArgumentException("No signature algorithm known for key algorithm: " + name);
     }
 
 
     /**
-     * Generiert ein selbstsigniertes X.509-Zertifikat.
+     * Generate a self-signed X.509 certificate.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair) throws Exception {
-        X500Name issuerName = new X500Name("CN=Test Certificate, O=Example Org, C=DE");
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String altSignatureAlgo, KeyPair altKeyPair) throws Exception {
+        X500Name issuerName = new X500Name("CN=PQCLI Test Certificate, O=pqcli, C=DE");
         X500Name subjectName = issuerName;
         BigInteger serialNumber = BigInteger.valueOf(new SecureRandom().nextInt());
-        Date notBefore = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000); // 1 Tag vorher
-        Date notAfter = new Date(System.currentTimeMillis() + 365 * 24 * 60 * 60 * 1000L); // 1 Jahr gültig
+        Date notBefore = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000); // Current time - 1 day
+        Date notAfter = new Date(System.currentTimeMillis() + 365 * 24 * 60 * 60 * 1000L); // Valid for 1 year
 
         X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                 issuerName, serialNumber, notBefore, notAfter, subjectName, keyPair.getPublic());
+
+        // TODO: Need to add extension for altKeyPair.publicKey
 
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.basicConstraints, true, new BasicConstraints(true));
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
 
         ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(keyPair.getPrivate());
-        X509CertificateHolder certHolder = certBuilder.build(contentSigner);
+        X509CertificateHolder certHolder;
+        if (!altSignatureAlgo.isEmpty()) { // alternative signature algorithm is given
+            ContentSigner altContentSigner = new JcaContentSignerBuilder(altSignatureAlgo).setProvider("BC").build(altKeyPair.getPrivate());
+            certHolder = certBuilder.build(contentSigner, false, altContentSigner);
+        } else {
+            certHolder = certBuilder.build(contentSigner);
+        }
 
         return new JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder);
+    }
+
+    /**
+     * Generate a self-signed X.509 certificate with a single signature algorithm.
+     */
+    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair) throws Exception {
+        return generateCertificate(signatureAlgorithm, keyPair, "", null);
     }
 
     private static void saveCertificateToFile(String fileName, X509Certificate certificate) throws IOException, CertificateEncodingException {
@@ -132,5 +182,13 @@ public class CertificateGenerator implements Callable<Integer> {
             os.write(encodedCert.getBytes());
             os.write(("\n-----END CERTIFICATE-----\n").getBytes());
         }
+    }
+
+    private static String[] getAlgorithmsFromStr(String algorithms) {
+        String[] algos = algorithms.split(",");
+        return Arrays.stream(algos)
+                     .filter(s -> !s.trim().isEmpty()) // Remove empty and whitespace-only strings
+                     .toArray(String[]::new);
+
     }
 }
