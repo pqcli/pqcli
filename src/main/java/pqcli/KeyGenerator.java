@@ -17,7 +17,9 @@ import java.security.spec.NamedParameterSpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 
+import org.bouncycastle.pqc.jcajce.provider.Dilithium;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
+import org.bouncycastle.pqc.jcajce.spec.SPHINCSPlusParameterSpec;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -87,7 +89,7 @@ public class KeyGenerator implements Callable<Integer> {
             keyPairGenerator.initialize(keyLength, new SecureRandom());   
         } 
         else if (algorithm.equalsIgnoreCase("Dilithium")) {
-            // Initialisation for PQC-Algorithm CRYSTALS-Dilithium
+            // Initialisation for PQC Algorithm CRYSTALS-Dilithium (ML-DSA / FIPS 204 is based on Dilithium)
             keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
 
             // Dilithium security level (2, 3, 5 available)
@@ -109,6 +111,46 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
+        else if (algorithm.equalsIgnoreCase("sphincsPlus") || algorithm.equalsIgnoreCase("sphincs+")) {
+            // Initialisation for PQC Algorithm SPHINCS+ (SLH-DSA / FIPS 205 is based on SPHINCS+)
+            keyPairGenerator = KeyPairGenerator.getInstance("SPHINCS+", "BCPQC");
+
+            // SPHINCS+ security level (128, 192, 256 available). s and f postfixes supported. SHAKE not supported for now.
+            String level = curveOrKeyLength;
+            SPHINCSPlusParameterSpec spec;
+            switch (level) {
+                case "128":
+                case "128s":
+                    spec = SPHINCSPlusParameterSpec.sha2_128s;
+                    break;
+                case "128f":
+                    spec = SPHINCSPlusParameterSpec.sha2_128f;
+                    break;
+                case "192":
+                case "192s":
+                    spec = SPHINCSPlusParameterSpec.sha2_192s;
+                    break;
+                case "192f":
+                    spec = SPHINCSPlusParameterSpec.sha2_192f;
+                    break;
+                case "256":
+                case "256s":
+                    spec = SPHINCSPlusParameterSpec.sha2_256s;
+                    break;
+                case "256f":
+                    spec = SPHINCSPlusParameterSpec.sha2_256f;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid SPHINCS+ security level " + level + ". Choose 128, 192 or 256.");
+            }
+
+            keyPairGenerator.initialize(spec, new SecureRandom());
+        }
+        // else if (algorithm.equalsIgnoreCase("ML-DSA")) {
+        //     // Note: ML-DSA is Dilithium, check if there are implementation differences
+        //     keyPairGenerator = KeyPairGenerator.getInstance("ML-DSA", "BCPQC");
+        //     keyPairGenerator.initialize(DilithiumParameterSpec.dilithium3, new SecureRandom());
+        // }
         else if (algorithm.equalsIgnoreCase("Ed25519") || algorithm.equalsIgnoreCase("Ed448")) {
             // Initialisation for EdDSA
             keyPairGenerator.initialize(new NamedParameterSpec(algorithm), new SecureRandom());

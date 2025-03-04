@@ -30,6 +30,9 @@ public class AlgorithmWithParameters {
                 return "2048";
             case "dilithium":
                 return "3";
+            case "sphincs+":
+            case "sphincsplus":
+                return "192";
             default:
                 return ""; // Ed25519, Ed448, ...
         }

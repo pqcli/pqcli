@@ -164,8 +164,9 @@ public class CertificateGenerator implements Callable<Integer> {
             return "SHA256withDSA";
         } else if (name.contains("dilithium")) {
             return "Dilithium";
+        } else if (name.contains("sphincs")) {
+            return "SPHINCS+";
         }
-        // TODO: support ML-DSA etc...
 
         throw new IllegalArgumentException("No signature algorithm known for key algorithm: " + name);
     }

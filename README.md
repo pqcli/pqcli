@@ -62,15 +62,19 @@ Option | Description | Impl.
 --- | --- | ---
 -newkey / -new / -t | The algorithm(s) to use to generate a new keypair, e.g. `rsa:2048`. | ✔️
 
-#### Supported signature key algorithm
+#### Supported signature key algorithms
 
 Algorithm | Key sizes | Default parameter
 --- | --- | ---
 RSA | 1024-8192 | 2048
 EC | All common named curves, e.g. `secp256r1` | `secp256r1`
 DSA | 1024-4096 | 2048
-Ed25519 |
-Ed448 |
+Ed25519 | - | -
+Ed448 | - | -
 Dilithium | 2, 3, 5 | 3
+SPHINCS+ | 128s, 128f, 192s, 192f, 256s, 256f | 192 (s)
+
+Dilithium and SPHINCS+ have been standardised by NIST as FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA), respectively.
+The authors did not yet verify that the BC v1.80 implementation of these algorithms is already fully standard-compliant.
 
 ## TeX sources, example code and files for the PQC hybrid certificate paper
