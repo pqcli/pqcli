@@ -1,6 +1,6 @@
 <div align="center">
 
-![pqcli](.gh-assets/pqcli_256.png)
+![pqcli](.gh-assets/pqcli_banner.png)
 **CLI wrapper for BouncyCastle with a particular focus on post-quantum hybrid certificates.**
 
 </div>
