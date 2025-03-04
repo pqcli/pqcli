@@ -15,12 +15,18 @@ This generates a complete .jar file in the `/target` dir.
 
 ## Usage
 
-Example
+Examples
 
 ```
-java -jar .\pqcli.jar cert -newkey Dilithium:3 -sig Dilithium:3
+java -jar .\pqcli.jar cert -newkey Dilithium:3
 ```
-Generates a Dilithium keypair with Dilithium signature.
+Generates a self-signed PQC X.509 Certificate using a Dilithium key pair.
+
+
+```
+java -jar .\pqcli.jar cert -newkey RSA:3072,Dilithium:3
+```
+Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm.
 
 ### CLI structure (not yet implemented, not yet final)
 

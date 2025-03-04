@@ -3,6 +3,7 @@ package pqcli;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.asn1.x509.SubjectAltPublicKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -21,7 +22,6 @@ import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.security.spec.RSAPrivateKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Callable;
@@ -151,7 +151,11 @@ public class CertificateGenerator implements Callable<Integer> {
         X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                 issuerName, serialNumber, notBefore, notAfter, subjectName, keyPair.getPublic());
 
-        // TODO: Need to add extension for altKeyPair.publicKey
+        // Add SubjectAltPublicKeyInfo extension for the alternative public key
+        if (altKeyPair != null) {
+            SubjectAltPublicKeyInfo altKeyInfo = SubjectAltPublicKeyInfo.getInstance(altKeyPair.getPublic().getEncoded());
+            certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.subjectAltPublicKeyInfo, false, altKeyInfo);
+        }
 
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.basicConstraints, true, new BasicConstraints(true));
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
