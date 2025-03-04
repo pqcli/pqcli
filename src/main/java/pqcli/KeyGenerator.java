@@ -12,6 +12,8 @@ import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.EdDSAParameterSpec;
+import java.security.spec.NamedParameterSpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 
@@ -64,6 +66,17 @@ public class KeyGenerator implements Callable<Integer> {
             if (keyLength < 1024) {
                 throw new IllegalArgumentException("RSA key length must be at least 1024 bit.");
             }
+            if (keyLength % 2 != 0) {
+                // enforce even key length as BC will hang unable to generate primes on odd key lengths
+                throw new IllegalArgumentException("RSA key length must be an even number.");
+            }
+            if (keyLength > 8192) {
+                // arbitrary limit, but ensures no crazy key lengths are used
+                throw new IllegalArgumentException("RSA key length must be at most 8192 bit.");
+            }
+            if (keyLength < 2048) {
+                System.out.println("Warning: RSA key length is less than 2048 bit. Consider using a stronger key length.");
+            }
             keyPairGenerator.initialize(keyLength, new SecureRandom());
         } else if (algorithm.equalsIgnoreCase("DSA")) {
             // Initialisierung für DSA mit der angegebenen Schlüssellänge
@@ -95,6 +108,10 @@ public class KeyGenerator implements Callable<Integer> {
             }
 
             keyPairGenerator.initialize(spec, new SecureRandom());
+        }
+        else if (algorithm.equalsIgnoreCase("EdDSA")) {
+            // Initialisierung für EdDSA mit der angegebenen Kurve
+            keyPairGenerator.initialize(new NamedParameterSpec(curveOrKeyLength), new SecureRandom());
 
         } else {
             throw new IllegalArgumentException("Algorithm not supported: " + algorithm);

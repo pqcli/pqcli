@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 import java.util.Date;
+import java.util.regex.*;
 
 @Command(name="cert", description="Generates an X.509 v3 certificate with a public/private key pair")
 public class CertificateGenerator implements Callable<Integer> {
@@ -124,7 +125,7 @@ public class CertificateGenerator implements Callable<Integer> {
 	
 	 private static String getSuitableSignatureAlgorithm(AlgorithmWithParameters keyAlgorithm) {
         String name = keyAlgorithm.algorithm.toLowerCase();
-        String params = keyAlgorithm.keySizeOrCurve;
+        String params = keyAlgorithm.keySizeOrCurve.toLowerCase();
 
         if (name.contains("rsa")) {
             boolean rsaPss = false;
@@ -138,12 +139,35 @@ public class CertificateGenerator implements Callable<Integer> {
             if (rsaPss) sigAlgo = sigAlgo + "andMGF1";
             return sigAlgo;
         } else if (name.contains("ec")) {
+            int curveSize = 256;
+
+            // This simply takes the first number in the curve name as the curve size
+            // which should be fine for all common curves but is technically hackish
+            Pattern pattern = Pattern.compile("\\d+"); // One or more digits
+            Matcher matcher = pattern.matcher(params);
+            if (matcher.find()) {
+                curveSize = Integer.parseInt(matcher.group());
+            }
+            System.out.println("Curve size: " + curveSize);
+
+            // RFC 5656 section 6.2.1:
+            if (curveSize > 384) {
+                return "SHA512withECDSA";
+            } else if (curveSize > 256) {
+                return "SHA384withECDSA";
+            }
             return "SHA256withECDSA";
+        } else if (name.contains("eddsa")) {
+            if (params.contains("ed448")) {
+                return "Ed448";
+            }
+            return "Ed25519";
         } else if (name.contains("dsa")) {
             return "SHA256withDSA";
         } else if (name.contains("dilithium")) {
             return "Dilithium";
         }
+        // TODO: support ED25519, ED448, ML-DSA...
 
         throw new IllegalArgumentException("No signature algorithm known for key algorithm: " + name);
     }
