@@ -142,13 +142,12 @@ public class CertificateGenerator implements Callable<Integer> {
             int curveSize = 256;
 
             // This simply takes the first number in the curve name as the curve size
-            // which should be fine for all common curves but is technically hackish
+            // which should be fine for all common curves but is technically hacky
             Pattern pattern = Pattern.compile("\\d+"); // One or more digits
             Matcher matcher = pattern.matcher(params);
             if (matcher.find()) {
                 curveSize = Integer.parseInt(matcher.group());
             }
-            System.out.println("Curve size: " + curveSize);
 
             // RFC 5656 section 6.2.1:
             if (curveSize > 384) {
@@ -157,17 +156,16 @@ public class CertificateGenerator implements Callable<Integer> {
                 return "SHA384withECDSA";
             }
             return "SHA256withECDSA";
-        } else if (name.contains("eddsa")) {
-            if (params.contains("ed448")) {
-                return "Ed448";
-            }
+        } else if (name.contains("ed25519")) {
             return "Ed25519";
+        } else if (name.contains("ed448")) {
+            return "Ed448";
         } else if (name.contains("dsa")) {
             return "SHA256withDSA";
         } else if (name.contains("dilithium")) {
             return "Dilithium";
         }
-        // TODO: support ED25519, ED448, ML-DSA...
+        // TODO: support ML-DSA etc...
 
         throw new IllegalArgumentException("No signature algorithm known for key algorithm: " + name);
     }

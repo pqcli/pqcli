@@ -61,7 +61,7 @@ public class KeyGenerator implements Callable<Integer> {
             // Initialisierung mit der angegebenen Kurve (z. B. prime256v1)
             keyPairGenerator.initialize(new ECGenParameterSpec(curveOrKeyLength), new SecureRandom());
         } else if (algorithm.equalsIgnoreCase("RSA")) {
-            // Initialisierung für RSA mit der angegebenen Schlüssellänge
+            // Initialisation for RSA with the given key length
             int keyLength = Integer.parseInt(curveOrKeyLength);
             if (keyLength < 1024) {
                 throw new IllegalArgumentException("RSA key length must be at least 1024 bit.");
@@ -79,18 +79,18 @@ public class KeyGenerator implements Callable<Integer> {
             }
             keyPairGenerator.initialize(keyLength, new SecureRandom());
         } else if (algorithm.equalsIgnoreCase("DSA")) {
-            // Initialisierung für DSA mit der angegebenen Schlüssellänge
+            // Initialisation for DSA with the given key length
             int keyLength = Integer.parseInt(curveOrKeyLength);
-            if (keyLength < 1024) {
-                throw new IllegalArgumentException("DSA key length must be at least 1024 bit.");
+            if (keyLength < 1024 || keyLength > 4096 || keyLength % 1024 != 0) {
+                throw new IllegalArgumentException("DSA key length must be either 1024, 2048, 3072, or 4096.");
             }
             keyPairGenerator.initialize(keyLength, new SecureRandom());   
         } 
         else if (algorithm.equalsIgnoreCase("Dilithium")) {
-            // Initialisierung für PQC-Algorithmus CRYSTALS-Dilithium
+            // Initialisation for PQC-Algorithm CRYSTALS-Dilithium
             keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
 
-            // Wähle Dilithium-Sicherheitsstufe (2, 3, 5 verfügbar)
+            // Dilithium security level (2, 3, 5 available)
             int level = Integer.parseInt(curveOrKeyLength);
             DilithiumParameterSpec spec;
             switch (level) {
@@ -109,9 +109,9 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
-        else if (algorithm.equalsIgnoreCase("EdDSA")) {
-            // Initialisierung für EdDSA mit der angegebenen Kurve
-            keyPairGenerator.initialize(new NamedParameterSpec(curveOrKeyLength), new SecureRandom());
+        else if (algorithm.equalsIgnoreCase("Ed25519") || algorithm.equalsIgnoreCase("Ed448")) {
+            // Initialisation for EdDSA
+            keyPairGenerator.initialize(new NamedParameterSpec(algorithm), new SecureRandom());
 
         } else {
             throw new IllegalArgumentException("Algorithm not supported: " + algorithm);

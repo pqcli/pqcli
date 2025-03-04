@@ -24,7 +24,7 @@ Generates a self-signed PQC X.509 Certificate using a Dilithium key pair.
 
 
 ```
-java -jar .\pqcli.jar cert -newkey RSA:3072,Dilithium:3
+java -jar .\pqcli.jar cert -newkey RSA,Dilithium:3
 ```
 Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm.
 
@@ -61,5 +61,16 @@ Option | Description | Impl.
 Option | Description | Impl.
 --- | --- | ---
 -newkey / -new / -t | The algorithm(s) to use to generate a new keypair, e.g. `rsa:2048`. | ✔️
+
+#### Supported signature key algorithm
+
+Algorithm | Key sizes | Default parameter
+--- | --- | ---
+RSA | 1024-8192 | 2048
+EC | All common named curves, e.g. `secp256r1` | `secp256r1`
+DSA | 1024-4096 | 2048
+Ed25519 |
+Ed448 |
+Dilithium | 2, 3, 5 | 3
 
 ## TeX sources, example code and files for the PQC hybrid certificate paper
