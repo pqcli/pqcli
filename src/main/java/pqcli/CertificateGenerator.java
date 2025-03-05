@@ -123,8 +123,8 @@ public class CertificateGenerator implements Callable<Integer> {
 	}
 	
 	 private static String getSuitableSignatureAlgorithm(AlgorithmWithParameters keyAlgorithm) {
-        String name = keyAlgorithm.algorithm.toLowerCase();
-        String params = keyAlgorithm.keySizeOrCurve.toLowerCase();
+        String name = keyAlgorithm.algorithm;
+        String params = keyAlgorithm.keySizeOrCurve;
 
         if (name.contains("rsa")) {
             boolean rsaPss = false;
@@ -166,9 +166,9 @@ public class CertificateGenerator implements Callable<Integer> {
         } else if (name.contains("dilithium-bcpqc")) {
             throw new IllegalArgumentException("Signature with BCPQC Dilithium key no longer supported, use ML-DSA.");
             //return "Dilithium"; // BC 1.79+ uses this as an alias for ML-DSA, that however does not recognize the Dilithium private key
-        } else if (name.contains("mldsa") || name.contains("ml-dsa") || name.contains("dilithium")) {
+        } else if (name.contains("mldsa")) {
             return "ML-DSA";
-        } else if (name.contains("sphincs") || name.contains("slh")) {
+        } else if (name.contains("slhdsa")) {
             return "SLH-DSA";
         } else if (name.contains("dsa")) { // ensure DSA is last as to not match ML-DSA or ECDSA etc.
             return "SHA256withDSA";
