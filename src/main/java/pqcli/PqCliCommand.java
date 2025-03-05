@@ -14,7 +14,8 @@ import picocli.CommandLine.Parameters;
     version = "PQCLI 0.1.0",
     subcommands = {
         CertificateGenerator.class,
-        KeyGenerator.class
+        KeyGenerator.class,
+        ViewCommand.class
     }) 
 public class PqCliCommand implements Callable<Integer> {
     @Override

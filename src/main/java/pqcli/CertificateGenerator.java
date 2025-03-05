@@ -163,7 +163,7 @@ public class CertificateGenerator implements Callable<Integer> {
         } else if (name.contains("dsa")) {
             return "SHA256withDSA";
         } else if (name.contains("dilithium")) {
-            return "Dilithium";
+            return "Dilithium"; // "ML-DSA" ok for BC 1.79+, however that does not recognize the private key
         } else if (name.contains("sphincs")) {
             return "SPHINCS+";
         }

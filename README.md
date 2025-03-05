@@ -35,6 +35,16 @@ java -jar .\pqcli.jar cert -newkey RSA,Dilithium:3
 ```
 Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm.
 
+```
+java -jar .\pqcli.jar key -t sphincs+:192f
+```
+Generate a SPHINCS+ (SLH-DSA) keypair with SHA2-192f parameters.
+
+```
+java -jar .\pqcli.jar view certificate.pem
+```
+Examine an existing certificate in PEM format.
+
 ### CLI structure (not yet implemented, not yet final)
 
 This is an overview of the initial idea how the tool might be structured.
@@ -47,7 +57,7 @@ csr | Generate a certificate signing request
 (crl) | Generate a certificate revocation list
 verify | Verify a certificate chain or signature (depending on parameters)
 (sign) | Sign some data using a private key
-view | Displays the contents of e.g. a certificate or key metadata in human-readable form
+view | Displays the contents of e.g. a certificate or key metadata in human-readable form | ✔️
 
 #### cert API
 

@@ -12,7 +12,6 @@ import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.spec.ECGenParameterSpec;
-import java.security.spec.EdDSAParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
