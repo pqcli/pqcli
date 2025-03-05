@@ -16,9 +16,9 @@ import java.security.spec.NamedParameterSpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 
-import org.bouncycastle.pqc.jcajce.provider.Dilithium;
 import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
+import org.bouncycastle.jcajce.spec.SLHDSAParameterSpec;
 import org.bouncycastle.pqc.jcajce.spec.SPHINCSPlusParameterSpec;
 
 import picocli.CommandLine.Command;
@@ -57,6 +57,33 @@ public class KeyGenerator implements Callable<Integer> {
     public static KeyPair generateKeyPair(String algorithm, String curveOrKeyLength) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
 
+        // Remove this if there is no reason to use raw Dilithium keys over ML-DSA
+        if (algorithm.equalsIgnoreCase("Dilithium-bcpqc")) {
+            // Initialisation for PQC Algorithm CRYSTALS-Dilithium (ML-DSA / FIPS 204 is based on Dilithium)
+            // Note: The Dilitium implementation in the BCPQC provider outputs a private key BC 1.79+ can no longer use for signing.
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
+
+            // Dilithium security level (2, 3, 5 available)
+            int level = Integer.parseInt(curveOrKeyLength);
+            DilithiumParameterSpec spec;
+            switch (level) {
+                case 2:
+                    spec = DilithiumParameterSpec.dilithium2;
+                    break;
+                case 3:
+                    spec = DilithiumParameterSpec.dilithium3;
+                    break;
+                case 5:
+                    spec = DilithiumParameterSpec.dilithium5;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid Dilithium security level " + level + ". Choose 2, 3 or 5.");
+            }
+
+            keyPairGenerator.initialize(spec, new SecureRandom());
+            return keyPairGenerator.generateKeyPair();
+        }
+
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm, "BC");
 
         if (algorithm.equalsIgnoreCase("EC")) {
@@ -88,31 +115,7 @@ public class KeyGenerator implements Callable<Integer> {
             }
             keyPairGenerator.initialize(keyLength, new SecureRandom());   
         } 
-        else if (algorithm.equalsIgnoreCase("Dilithium")) {
-            // Initialisation for PQC Algorithm CRYSTALS-Dilithium (ML-DSA / FIPS 204 is based on Dilithium)
-            // Note: The Dilitium implementation in the BCPQC provider outputs a private key BC 1.79+ can no longer use for signing.
-            keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
-
-            // Dilithium security level (2, 3, 5 available)
-            int level = Integer.parseInt(curveOrKeyLength);
-            DilithiumParameterSpec spec;
-            switch (level) {
-                case 2:
-                    spec = DilithiumParameterSpec.dilithium2;
-                    break;
-                case 3:
-                    spec = DilithiumParameterSpec.dilithium3;
-                    break;
-                case 5:
-                    spec = DilithiumParameterSpec.dilithium5;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Invalid Dilithium security level " + level + ". Choose 2, 3 or 5.");
-            }
-
-            keyPairGenerator.initialize(spec, new SecureRandom());
-        }
-        else if (algorithm.equalsIgnoreCase("ML-DSA") || algorithm.equalsIgnoreCase("MLDSA")) {
+        else if (algorithm.equalsIgnoreCase("ML-DSA") || algorithm.equalsIgnoreCase("MLDSA") || algorithm.equalsIgnoreCase("Dilithium")) {
             // Initialisation for PQC Algorithm ML-DSA (based on Dilithium)
             keyPairGenerator = KeyPairGenerator.getInstance("ML-DSA", "BC");
 
@@ -138,37 +141,38 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
-        else if (algorithm.equalsIgnoreCase("sphincsPlus") || algorithm.equalsIgnoreCase("sphincs+")) {
-            // Initialisation for PQC Algorithm SPHINCS+ (SLH-DSA / FIPS 205 is based on SPHINCS+)
-            keyPairGenerator = KeyPairGenerator.getInstance("SPHINCS+", "BCPQC");
+        else if (algorithm.equalsIgnoreCase("sphincsPlus") || algorithm.equalsIgnoreCase("sphincs+") ||
+                 algorithm.equalsIgnoreCase("slh-dsa") || algorithm.equalsIgnoreCase("slhdsa")) {
+            // Initialisation for PQC Algorithm SLH-DSA / FIPS 205 (based on SPHINCS+)
+            keyPairGenerator = KeyPairGenerator.getInstance("SLH-DSA", "BC");
 
             // SPHINCS+ security level (128, 192, 256 available). s and f postfixes supported. SHAKE not supported for now.
             String level = curveOrKeyLength;
-            SPHINCSPlusParameterSpec spec;
+            SLHDSAParameterSpec spec;
             switch (level) {
                 case "128":
                 case "128s":
-                    spec = SPHINCSPlusParameterSpec.sha2_128s;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128s_with_sha256;
                     break;
                 case "128f":
-                    spec = SPHINCSPlusParameterSpec.sha2_128f;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128f_with_sha256;
                     break;
                 case "192":
                 case "192s":
-                    spec = SPHINCSPlusParameterSpec.sha2_192s;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192s_with_sha512;
                     break;
                 case "192f":
-                    spec = SPHINCSPlusParameterSpec.sha2_192f;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192f_with_sha512;
                     break;
                 case "256":
                 case "256s":
-                    spec = SPHINCSPlusParameterSpec.sha2_256s;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256s_with_sha512;
                     break;
                 case "256f":
-                    spec = SPHINCSPlusParameterSpec.sha2_256f;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256f_with_sha512;
                     break;
                 default:
-                    throw new IllegalArgumentException("Invalid SPHINCS+ security level " + level + ". Choose 128, 192 or 256.");
+                    throw new IllegalArgumentException("Invalid SLH-DSA security level " + level + ". Choose 128, 192 or 256.");
             }
 
             keyPairGenerator.initialize(spec, new SecureRandom());

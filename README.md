@@ -36,7 +36,7 @@ java -jar .\pqcli.jar cert -newkey RSA,Dilithium:3
 Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm.
 
 ```
-java -jar .\pqcli.jar key -t sphincs+:192f
+java -jar .\pqcli.jar key -t slh-dsa:192f
 ```
 Generate a SPHINCS+ (SLH-DSA) keypair with SHA2-192f parameters.
 
@@ -83,13 +83,14 @@ Option | Description | Impl.
 
 Algorithm | Key sizes | Default parameter
 --- | --- | ---
+ML-DSA (Dilithium) | 44, 65, 87 (or 2, 3, 5) | 3
+dilithium-bcpqc | 2, 3, 5 | 3
+SLH-DSA (SPHINCS+) | 128s, 128f, 192s, 192f, 256s, 256f (all SHA-2) | 192 (s)
 RSA | 1024-8192 | 2048
 EC | All common named curves, e.g. `secp256r1` | `secp256r1`
 DSA | 1024-4096 | 2048
 Ed25519 | - | -
 Ed448 | - | -
-Dilithium | 2, 3, 5 | 3
-SPHINCS+ | 128s, 128f, 192s, 192f, 256s, 256f (all SHA-2) | 192 (s)
 
-Dilithium and SPHINCS+ have been standardised by NIST as FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA), respectively.
-The authors did not yet verify that the BC v1.80 implementation of these algorithms is already fully standard-compliant.
+Note: dilithium-bcpqc is the Dilithium implementation from the BouncyCastle Post-Quantum Security Provider, which BC 1.79+ no longer supports for certificate signing.
+It is provided for keypair generation and A/B testing only.
