@@ -20,10 +20,12 @@ import picocli.CommandLine.Parameters;
 public class PqCliCommand implements Callable<Integer> {
     @Override
     public Integer call() {
-        System.out.println("\r\n" +
-                           "  _  _  _  /.\r\n" +
-                           " /_//_//_ // \r\n" +
-                           "/    /       \r\n");
+        System.out.println("\r\n" + // ASCII Art
+                           "   /\\   \r\n" +   //    /\
+                           " /\\\\//\\ \r\n" + //  /\\//\
+                           "|\\/ .\\/|\r\n" +  // |\/ .\/|
+                           "| <||  |\r\n");    // | <||  |
+
         System.out.println("Please specify a command!");
         return 0;
     }

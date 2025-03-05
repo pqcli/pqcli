@@ -12,6 +12,17 @@ target/
 *.war
 *.ear
 
+# (Test) certificate and key files
+*.pem
+*.crt
+*.cer
+*.key
+*.jks
+*.p12
+*.pfx
+*.csr
+*.crl
+
 # IDE-specific files (IntelliJ IDEA, Eclipse, VS Code, NetBeans)
 ### IntelliJ ###
 .idea/

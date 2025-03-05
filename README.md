@@ -86,11 +86,11 @@ Algorithm | Key sizes | Default parameter
 ML-DSA (Dilithium) | 44, 65, 87 (or 2, 3, 5) | 3
 dilithium-bcpqc | 2, 3, 5 | 3
 SLH-DSA (SPHINCS+) | 128s, 128f, 192s, 192f, 256s, 256f (all SHA-2) | 192 (s)
-RSA | 1024-8192 | 2048
+RSA | 1024-8192 (append `-pss` for using RSASSA-PSS, e.g. `rsa:3072-pss`) | 2048
 EC | All common named curves, e.g. `secp256r1` | `secp256r1`
 DSA | 1024-4096 | 2048
 Ed25519 | - | -
 Ed448 | - | -
 
-Note: dilithium-bcpqc is the Dilithium implementation from the BouncyCastle Post-Quantum Security Provider, which BC 1.79+ no longer supports for certificate signing.
+Note: `dilithium-bcpqc` is the Dilithium implementation from the BouncyCastle Post-Quantum Security Provider, which BC 1.79+ no longer supports for certificate signing.
 It is provided for keypair generation and A/B testing only.

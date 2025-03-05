@@ -19,7 +19,6 @@ import java.util.concurrent.Callable;
 import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
 import org.bouncycastle.jcajce.spec.SLHDSAParameterSpec;
-import org.bouncycastle.pqc.jcajce.spec.SPHINCSPlusParameterSpec;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -57,8 +56,11 @@ public class KeyGenerator implements Callable<Integer> {
     public static KeyPair generateKeyPair(String algorithm, String curveOrKeyLength) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
 
+        algorithm = algorithm.toLowerCase();
+        curveOrKeyLength = curveOrKeyLength.toLowerCase();
+
         // Remove this if there is no reason to use raw Dilithium keys over ML-DSA
-        if (algorithm.equalsIgnoreCase("Dilithium-bcpqc")) {
+        if (algorithm.equals("dilithium-bcpqc")) {
             // Initialisation for PQC Algorithm CRYSTALS-Dilithium (ML-DSA / FIPS 204 is based on Dilithium)
             // Note: The Dilitium implementation in the BCPQC provider outputs a private key BC 1.79+ can no longer use for signing.
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
@@ -86,11 +88,15 @@ public class KeyGenerator implements Callable<Integer> {
 
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm, "BC");
 
-        if (algorithm.equalsIgnoreCase("EC")) {
+        if (algorithm.equals("ec")) {
             // Initialisierung mit der angegebenen Kurve (z. B. prime256v1)
             keyPairGenerator.initialize(new ECGenParameterSpec(curveOrKeyLength), new SecureRandom());
-        } else if (algorithm.equalsIgnoreCase("RSA")) {
+        }
+        else if (algorithm.equals("rsa")) {
             // Initialisation for RSA with the given key length
+            if (curveOrKeyLength.endsWith("-pss")) { // PSS is not relevant for key generation
+                curveOrKeyLength = curveOrKeyLength.substring(0, curveOrKeyLength.length() - 4);
+            }
             int keyLength = Integer.parseInt(curveOrKeyLength);
             if (keyLength < 1024) {
                 throw new IllegalArgumentException("RSA key length must be at least 1024 bit.");
@@ -107,7 +113,8 @@ public class KeyGenerator implements Callable<Integer> {
                 System.out.println("Warning: RSA key length is less than 2048 bit. Consider using a stronger key length.");
             }
             keyPairGenerator.initialize(keyLength, new SecureRandom());
-        } else if (algorithm.equalsIgnoreCase("DSA")) {
+        }
+        else if (algorithm.equals("dsa")) {
             // Initialisation for DSA with the given key length
             int keyLength = Integer.parseInt(curveOrKeyLength);
             if (keyLength < 1024 || keyLength > 4096 || keyLength % 1024 != 0) {
@@ -115,7 +122,7 @@ public class KeyGenerator implements Callable<Integer> {
             }
             keyPairGenerator.initialize(keyLength, new SecureRandom());   
         } 
-        else if (algorithm.equalsIgnoreCase("ML-DSA") || algorithm.equalsIgnoreCase("MLDSA") || algorithm.equalsIgnoreCase("Dilithium")) {
+        else if (algorithm.equals("ml-dsa") || algorithm.equals("mldsa") || algorithm.equals("dilithium")) {
             // Initialisation for PQC Algorithm ML-DSA (based on Dilithium)
             keyPairGenerator = KeyPairGenerator.getInstance("ML-DSA", "BC");
 
@@ -141,8 +148,8 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
-        else if (algorithm.equalsIgnoreCase("sphincsPlus") || algorithm.equalsIgnoreCase("sphincs+") ||
-                 algorithm.equalsIgnoreCase("slh-dsa") || algorithm.equalsIgnoreCase("slhdsa")) {
+        else if (algorithm.equals("sphincsplus") || algorithm.equals("sphincs+") ||
+                 algorithm.equals("slh-dsa") || algorithm.equals("slhdsa")) {
             // Initialisation for PQC Algorithm SLH-DSA / FIPS 205 (based on SPHINCS+)
             keyPairGenerator = KeyPairGenerator.getInstance("SLH-DSA", "BC");
 
@@ -177,12 +184,7 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
-        // else if (algorithm.equalsIgnoreCase("ML-DSA")) {
-        //     // Note: ML-DSA is Dilithium, check if there are implementation differences
-        //     keyPairGenerator = KeyPairGenerator.getInstance("ML-DSA", "BCPQC");
-        //     keyPairGenerator.initialize(DilithiumParameterSpec.dilithium3, new SecureRandom());
-        // }
-        else if (algorithm.equalsIgnoreCase("Ed25519") || algorithm.equalsIgnoreCase("Ed448")) {
+        else if (algorithm.equals("ed25519") || algorithm.equals("ed448")) {
             // Initialisation for EdDSA
             keyPairGenerator.initialize(new NamedParameterSpec(algorithm), new SecureRandom());
 

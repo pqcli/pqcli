@@ -13,7 +13,6 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -129,6 +128,10 @@ public class CertificateGenerator implements Callable<Integer> {
 
         if (name.contains("rsa")) {
             boolean rsaPss = false;
+            if (params.endsWith("-pss")) {
+                rsaPss = true;
+                params = params.substring(0, params.length() - 4);
+            }
             String sigAlgo = "SHA256withRSA";
             int keySize = Integer.parseInt(params);
             if (keySize >= 4096) {

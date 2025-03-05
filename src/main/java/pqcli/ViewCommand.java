@@ -10,10 +10,9 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.concurrent.Callable;
+import java.util.List;
 import java.util.stream.Collectors;
 
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.jce.provider.X509CertificateObject;
 
 @Command(name="view", description="View information about a certificate")
 public class ViewCommand implements Callable<Integer> {
@@ -36,8 +35,17 @@ public class ViewCommand implements Callable<Integer> {
     }
 
     private static X509Certificate loadCertificate(String pemFilePath) throws Exception {
-        String pemContent = Files.readAllLines(Paths.get(pemFilePath))
-                                 .stream()
+        List<String> lines = Files.readAllLines(Paths.get(pemFilePath));
+
+        // check if key or certificate
+        if (lines.get(0).contains("KEY---")) {
+            throw new IllegalArgumentException("Viewing key data is not yet supported");
+        }
+        if (!lines.get(0).contains("CERTIFICATE---")) {
+            throw new IllegalArgumentException("File does not appear to be a PEM-encoded certificate");
+        }
+
+        String pemContent = lines.stream()
                                  .filter(line -> !line.startsWith("-----"))
                                  .collect(Collectors.joining());
 
