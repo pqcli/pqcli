@@ -29,6 +29,8 @@ public class AlgorithmWithParameters {
             case "dsa":
                 return "2048";
             case "dilithium":
+            case "mldsa":
+            case "ml-dsa":
                 return "3";
             case "sphincs+":
             case "sphincsplus":

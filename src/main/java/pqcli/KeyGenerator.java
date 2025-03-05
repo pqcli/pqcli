@@ -17,6 +17,7 @@ import java.util.Base64;
 import java.util.concurrent.Callable;
 
 import org.bouncycastle.pqc.jcajce.provider.Dilithium;
+import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.bouncycastle.pqc.jcajce.spec.DilithiumParameterSpec;
 import org.bouncycastle.pqc.jcajce.spec.SPHINCSPlusParameterSpec;
 
@@ -89,6 +90,7 @@ public class KeyGenerator implements Callable<Integer> {
         } 
         else if (algorithm.equalsIgnoreCase("Dilithium")) {
             // Initialisation for PQC Algorithm CRYSTALS-Dilithium (ML-DSA / FIPS 204 is based on Dilithium)
+            // Note: The Dilitium implementation in the BCPQC provider outputs a private key BC 1.79+ can no longer use for signing.
             keyPairGenerator = KeyPairGenerator.getInstance("Dilithium", "BCPQC");
 
             // Dilithium security level (2, 3, 5 available)
@@ -106,6 +108,32 @@ public class KeyGenerator implements Callable<Integer> {
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid Dilithium security level " + level + ". Choose 2, 3 or 5.");
+            }
+
+            keyPairGenerator.initialize(spec, new SecureRandom());
+        }
+        else if (algorithm.equalsIgnoreCase("ML-DSA") || algorithm.equalsIgnoreCase("MLDSA")) {
+            // Initialisation for PQC Algorithm ML-DSA (based on Dilithium)
+            keyPairGenerator = KeyPairGenerator.getInstance("ML-DSA", "BC");
+
+            // Dilithium security level (2, 3, 5 available)
+            int level = Integer.parseInt(curveOrKeyLength);
+            MLDSAParameterSpec spec;
+            switch (level) {
+                case 2:
+                case 44:
+                    spec = MLDSAParameterSpec.ml_dsa_44;
+                    break;
+                case 3:
+                case 65:
+                    spec = MLDSAParameterSpec.ml_dsa_65_with_sha512;
+                    break;
+                case 5:
+                case 87:
+                    spec = MLDSAParameterSpec.ml_dsa_87_with_sha512;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid ML-DSA parameter spec " + level + ". Choose 44, 65 or 87.");
             }
 
             keyPairGenerator.initialize(spec, new SecureRandom());

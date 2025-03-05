@@ -160,12 +160,15 @@ public class CertificateGenerator implements Callable<Integer> {
             return "Ed25519";
         } else if (name.contains("ed448")) {
             return "Ed448";
-        } else if (name.contains("dsa")) {
-            return "SHA256withDSA";
         } else if (name.contains("dilithium")) {
-            return "Dilithium"; // "ML-DSA" ok for BC 1.79+, however that does not recognize the private key
+            throw new IllegalArgumentException("Dilithium signature no longer supported, use ML-DSA.");
+            //return "Dilithium"; // BC 1.79+ uses this as an alias for ML-DSA, that however does not recognize the Dilithium private key
+        } else if (name.contains("mldsa") || name.contains("ml-dsa")) {
+            return "ML-DSA";
         } else if (name.contains("sphincs")) {
             return "SPHINCS+";
+        } else if (name.contains("dsa")) { // ensure DSA is last as to not match ML-DSA or ECDSA etc.
+            return "SHA256withDSA";
         }
 
         throw new IllegalArgumentException("No signature algorithm known for key algorithm: " + name);
