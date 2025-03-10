@@ -58,7 +58,7 @@ public class AlgorithmWithParameters {
             case "sphincs":
             case "sphincs+":
             case "sphincsplus":
-                return "slhdsa";
+                return "slh-dsa";
             default:
                 System.out.println("Warning: Unrecognized algorithm: " + algo);
                 return algo;
@@ -115,7 +115,7 @@ public class AlgorithmWithParameters {
                 return "3";
             case "mldsa":
                 return "65";
-            case "slhdsa":
+            case "slh-dsa":
                 return "192";
             default:
                 return ""; // Ed25519, Ed448, ...

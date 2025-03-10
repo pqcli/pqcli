@@ -168,7 +168,7 @@ public class CertificateGenerator implements Callable<Integer> {
             //return "Dilithium"; // BC 1.79+ uses this as an alias for ML-DSA, that however does not recognize the Dilithium private key
         } else if (name.contains("mldsa")) {
             return "ML-DSA";
-        } else if (name.contains("slhdsa")) {
+        } else if (name.contains("slh-dsa")) {
             return "SLH-DSA";
         } else if (name.contains("dsa")) { // ensure DSA is last as to not match ML-DSA or ECDSA etc.
             return "SHA256withDSA";

@@ -204,7 +204,7 @@ public class KeyGenerator implements Callable<Integer> {
 
             keyPairGenerator.initialize(spec, new SecureRandom());
         }
-        else if (algorithm.equals("slhdsa")) {
+        else if (algorithm.equals("slh-dsa")) {
             // Initialisation for PQC Algorithm SLH-DSA / FIPS 205 (based on SPHINCS+)
             keyPairGenerator = KeyPairGenerator.getInstance("SLH-DSA", "BC");
 
