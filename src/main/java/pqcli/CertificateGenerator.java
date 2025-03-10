@@ -1,10 +1,6 @@
 package pqcli;
 
-import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x500.X500NameBuilder;
-import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectAltPublicKeyInfo;
@@ -13,15 +9,9 @@ import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jcajce.CompositePrivateKey;
-import org.bouncycastle.jcajce.CompositePublicKey;
 import org.bouncycastle.jcajce.spec.CompositeAlgorithmSpec;
-import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.bouncycastle.pqc.crypto.lms.LMOtsParameters;
-import org.bouncycastle.pqc.crypto.lms.LMSigParameters;
-import org.bouncycastle.pqc.crypto.mldsa.MLDSAKeyGenerationParameters;
-import org.bouncycastle.pqc.jcajce.spec.LMSKeyGenParameterSpec;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -33,8 +23,6 @@ import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Callable;
@@ -55,6 +43,8 @@ public class CertificateGenerator implements Callable<Integer> {
 
     @Option(names = { "-subj", "-subject" }, description = "Certificate subject in OpenSSL format", required = false, defaultValue = "CN=PQCLI Test Certificate, C=DE")
     private String subject;
+
+    private static String compSigAlg0, compSigAlg1;
 
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
@@ -106,6 +96,13 @@ public class CertificateGenerator implements Callable<Integer> {
                 signatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithm);
             }
             signatureAlgorithm = getSuitableSignatureAlgorithm(keyAlgorithm);
+            if (signatureAlgorithm.equals("Composite")) {
+                if (nKeyAlgorithms > 1) {
+                    throw new IllegalArgumentException("Composite and hybrid certificates can not be combined yet!");
+                }
+                compSigAlg0 = getSuitableSignatureAlgorithm(keyAlgorithm.getCompositePart(0));
+                compSigAlg1 = getSuitableSignatureAlgorithm(keyAlgorithm.getCompositePart(1));
+            }
 
             // Create X.509 certificate
             X509Certificate certificate;
@@ -186,9 +183,9 @@ public class CertificateGenerator implements Callable<Integer> {
             throw new IllegalArgumentException("Signature with BCPQC Dilithium key no longer supported, use ML-DSA.");
             //return "Dilithium"; // BC 1.79+ uses this as an alias for ML-DSA, that however does not recognize the Dilithium private key
         } else if (name.contains("mldsa")) {
-            return "ML-DSA";
+            return "ML-DSA-" + params;
         } else if (name.contains("slh-dsa")) {
-            return "SLH-DSA";
+            return "SLH-DSA-SHA2-" + params;
         } else if (name.contains("dsa")) { // ensure DSA is last as to not match ML-DSA or ECDSA etc.
             return "SHA256withDSA";
         }
@@ -228,37 +225,21 @@ public class CertificateGenerator implements Callable<Integer> {
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
 
         ContentSigner contentSigner;
-        CompositePrivateKey compPrivKey = (CompositePrivateKey)keyPair.getPrivate();
-        AlgorithmIdentifier compAlgSpec2 = new AlgorithmIdentifier(compPrivKey.getAlgorithmIdentifier());
-        System.out.println(compAlgSpec2.getAlgorithm());
-        contentSigner = testSomeStuff(compPrivKey);
-        // if (signatureAlgorithm.equals("Composite")) {
-        //     if (!(keyPair.getPrivate() instanceof CompositePrivateKey)) {
-        //         throw new IllegalArgumentException("Composite signature algorithm requires a CompositePrivateKey");
-        //     }
-        //     CompositePrivateKey compPrivKey = (CompositePrivateKey)keyPair.getPrivate();
-        //     //AlgorithmIdentifier compAlgSpec = compPrivKey.getAlgorithmIdentifier();
-        //     AlgorithmIdentifier compAlgSpec2 = new AlgorithmIdentifier(compPrivKey.getAlgorithmIdentifier());
-        //     System.out.println(compAlgSpec2.getAlgorithm());
-        //     ASN1ObjectIdentifier oid = compPrivKey.getAlgorithmIdentifier();
-        //     System.out.println(oid);
+        if (signatureAlgorithm.equals("Composite")) {
+            if (!(keyPair.getPrivate() instanceof CompositePrivateKey)) {
+                throw new IllegalArgumentException("Composite signature algorithm requires a CompositePrivateKey");
+            }
+            CompositePrivateKey compPrivKey = (CompositePrivateKey)keyPair.getPrivate();
 
-        //     CompositeAlgorithmSpec compAlgSpec3 = new CompositeAlgorithmSpec.Builder()
-        //     .add("ML-DSA-65")
-        //     //.add("SHA256withECDSA")
-        //     .add("SHA512withRSA")
-        //     .build();
-        //     System.out.println(compAlgSpec3);
-        //     // 2 and 3 same result
-        //     // cannot create signer: no such algorithm: 1.3.6.1.4.1.18227.2.1 for provider BC (mldsa_ec)
-        //     // should be 2.16.840.1.114027.80.8.1.27
+            CompositeAlgorithmSpec compAlgSpec = new CompositeAlgorithmSpec.Builder()
+            .add(compSigAlg0)
+            .add(compSigAlg1)
+            .build();
 
-        //     //AlgorithmParameterSpec compAlgSpec = compPrivKey.getParams(); // is always null, disregard
-        //     final String BC = org.bouncycastle.jce.provider.BouncyCastleProvider.PROVIDER_NAME;
-        //     contentSigner = new JcaContentSignerBuilder("Composite", compAlgSpec3).setProvider(BC).build(compPrivKey);
-        // } else {
-        //     contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(keyPair.getPrivate());
-        // }
+            contentSigner = new JcaContentSignerBuilder("Composite", compAlgSpec).setProvider("BC").build(compPrivKey);
+        } else {
+            contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(keyPair.getPrivate());
+        }
         X509CertificateHolder certHolder;
         if (!altSignatureAlgo.isEmpty()) { // alternative signature algorithm is given
             ContentSigner altContentSigner = new JcaContentSignerBuilder(altSignatureAlgo).setProvider("BC").build(altKeyPair.getPrivate());
@@ -303,47 +284,5 @@ public class CertificateGenerator implements Callable<Integer> {
             x500Dn = x500Dn.substring(1);
         }
         return x500Dn;
-    }
-
-    private static ContentSigner testSomeStuff(CompositePrivateKey testCPK) throws Exception {
-        KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", "BC");
-
-        ecKpg.initialize(new ECGenParameterSpec("P-256"));
-
-        KeyPair ecKp = ecKpg.generateKeyPair();
-
-        PrivateKey ecPriv = ecKp.getPrivate();
-        PublicKey ecPub = ecKp.getPublic();
-
-        //KeyPairGenerator lmsKpg = KeyPairGenerator.getInstance("LMS", "BCPQC");
-
-        //lmsKpg.initialize(new LMSKeyGenParameterSpec(LMSigParameters.lms_sha256_n32_h5, LMOtsParameters.sha256_n32_w1));
-
-        //KeyPair lmsKp = lmsKpg.generateKeyPair();
-
-        //PrivateKey lmsPriv = lmsKp.getPrivate();
-        //PublicKey lmsPub = lmsKp.getPublic();
-
-        KeyPairGenerator mldsaKpg = KeyPairGenerator.getInstance("ML-DSA-44", "BC");
-
-        mldsaKpg.initialize(MLDSAParameterSpec.ml_dsa_44,  new SecureRandom());
-
-        KeyPair lmsKp = mldsaKpg.generateKeyPair();
-
-        PrivateKey lmsPriv = lmsKp.getPrivate();
-        PublicKey lmsPub = lmsKp.getPublic();
-
-        //
-        // create the certificate - version 3
-        //
-        CompositeAlgorithmSpec compAlgSpec = new CompositeAlgorithmSpec.Builder()
-            .add("SHA256withECDSA")
-            .add("ML-DSA-44")
-            .build();
-        CompositePublicKey compPub = new CompositePublicKey(ecPub, lmsPub);
-        CompositePrivateKey compPrivKey = new CompositePrivateKey(ecPriv, lmsPriv);
-
-        ContentSigner sigGen = new JcaContentSignerBuilder("Composite", compAlgSpec).setProvider("BC").build(testCPK);
-        return sigGen;
     }
 }

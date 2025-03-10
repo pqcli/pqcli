@@ -49,8 +49,13 @@ public class KeyGenerator implements Callable<Integer> {
     public static KeyPair generateKeyPair(String algorithmAndLength) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
         AlgorithmWithParameters algorithm = AlgorithmWithParameters.getAlgorithmParts(algorithmAndLength);
+        return generateKeyPair(algorithm);
+    }
+
+    public static KeyPair generateKeyPair(AlgorithmWithParameters algorithm) 
+            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
         if (algorithm.isComposite) {
-            return generateCompositeKeyPair(algorithm.algorithm);
+            return generateCompositeKeyPair(algorithm);
         }
         return generateKeyPair(algorithm.algorithm, algorithm.keySizeOrCurve);
     }
@@ -87,14 +92,17 @@ public class KeyGenerator implements Callable<Integer> {
         Map.entry("mldsa:87_ed448", "2.16.840.1.114027.80.8.1.33") //id-MLDSA87-Ed448-SHA512
     );
 
-    private static KeyPair generateCompositeKeyPair(String algorithm) 
+    private static KeyPair generateCompositeKeyPair(AlgorithmWithParameters algorithm) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-        String oid = compositeOIDLookup.get(algorithm);
-        if (oid == null) {
-            throw new IllegalArgumentException("The composite algorithm " + algorithm + " is not supported.");
-        }
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(oid, "BC");
-        return keyPairGenerator.generateKeyPair();
+        // String oid = compositeOIDLookup.get(algorithm);
+        // if (oid == null) {
+        //     throw new IllegalArgumentException("The composite algorithm " + algorithm + " is not supported.");
+        // }
+        KeyPair kp0 = generateKeyPair(algorithm.getCompositePart(0));
+        KeyPair kp1 = generateKeyPair(algorithm.getCompositePart(1));
+        CompositePrivateKey compPrivKey = new CompositePrivateKey(kp0.getPrivate(), kp1.getPrivate());
+        CompositePublicKey compPubKey = new CompositePublicKey(kp0.getPublic(), kp1.getPublic());
+        return new KeyPair(compPubKey, compPrivKey);
     }
 
     /**
@@ -182,11 +190,11 @@ public class KeyGenerator implements Callable<Integer> {
                     break;
                 case 3:
                 case 65:
-                    spec = MLDSAParameterSpec.ml_dsa_65_with_sha512;
+                    spec = MLDSAParameterSpec.ml_dsa_65;
                     break;
                 case 5:
                 case 87:
-                    spec = MLDSAParameterSpec.ml_dsa_87_with_sha512;
+                    spec = MLDSAParameterSpec.ml_dsa_87; // TODO: Check if ml_dsa_87_with_sha512 should be used
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid ML-DSA parameter spec " + level + ". Choose 44, 65 or 87.");
@@ -204,24 +212,24 @@ public class KeyGenerator implements Callable<Integer> {
             switch (level) {
                 case "128":
                 case "128s":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128s_with_sha256;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128s; // TODO: need to use _with_sha256?
                     break;
                 case "128f":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128f_with_sha256;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_128f;
                     break;
                 case "192":
                 case "192s":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192s_with_sha512;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192s;
                     break;
                 case "192f":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192f_with_sha512;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_192f;
                     break;
                 case "256":
                 case "256s":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256s_with_sha512;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256s;
                     break;
                 case "256f":
-                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256f_with_sha512;
+                    spec = SLHDSAParameterSpec.slh_dsa_sha2_256f;
                     break;
                 default:
                     throw new IllegalArgumentException("Invalid SLH-DSA security level " + level + ". Choose 128, 192 or 256.");

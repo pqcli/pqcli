@@ -10,6 +10,19 @@ public class AlgorithmWithParameters {
         this.isComposite = algorithm.contains("_");
     }
 
+    // this seems convoluted, consider refactoring so that CompositeAlgorithm is a separate class?
+    public AlgorithmWithParameters getCompositePart(int index) {
+        if (!isComposite) {
+            if (index == 0) return this;
+            throw new IllegalStateException("Algorithm is not composite");
+        }
+        String[] components = algorithm.split("_");
+        if (index < 0 || index >= components.length) {
+            throw new IllegalArgumentException("Invalid index for composite algorithm: " + index);
+        }
+        return getAlgorithmParts(components[index]);
+    }
+
     public static AlgorithmWithParameters getAlgorithmParts(String algorithm) {
         if (algorithm.contains("_")) {
             // is composite algorithm, e.g "mldsa:65_rsa:3072", need to normalize left and right components separately
@@ -116,7 +129,7 @@ public class AlgorithmWithParameters {
             case "mldsa":
                 return "65";
             case "slh-dsa":
-                return "192";
+                return "192s";
             default:
                 return ""; // Ed25519, Ed448, ...
         }
