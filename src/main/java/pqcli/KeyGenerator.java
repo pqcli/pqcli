@@ -78,6 +78,7 @@ public class KeyGenerator implements Callable<Integer> {
         Map.entry("mldsa:44_ec:secp256r1", "2.16.840.1.114027.80.8.1.24"), //id-MLDSA44-ECDSA-P256-SHA256
         Map.entry("mldsa:65_rsa:3072-pss", "2.16.840.1.114027.80.8.1.26"), //id-MLDSA65-RSA3072-PSS-SHA512
         Map.entry("mldsa:65_rsa:3072", "2.16.840.1.114027.80.8.1.27"), //id-MLDSA65-RSA3072-PKCS15-SHA512
+        //Map.entry("mldsa:65_rsa:3072", "2.16.840.1.114027.80.8.1.7"), //id_MLDSA65_RSA3072_PKCS15_SHA512 (BC 1.79)
         Map.entry("mldsa:65_ec:secp256r1", "2.16.840.1.114027.80.8.1.28"), //id-MLDSA65-ECDSA-P256-SHA512
         Map.entry("mldsa:65_ec:brainpoolP256r1", "2.16.840.1.114027.80.8.1.29"), //id-MLDSA65-ECDSA-brainpoolP256r1-SHA512
         Map.entry("mldsa:65_ed25519", "2.16.840.1.114027.80.8.1.30"), //id-MLDSA65-Ed25519-SHA512
@@ -103,17 +104,6 @@ public class KeyGenerator implements Callable<Integer> {
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
 
         curveOrKeyLength = curveOrKeyLength.toLowerCase();
-
-        if (algorithm.equals("testcomposite")) {
-            String oid = "2.16.840.1.114027.80.8.1.27"; //MLDSA65-RSA3072-PKCS15-SHA512
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(oid, "BC");
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-            CompositePublicKey compositePublicKey = (CompositePublicKey)keyPair.getPublic();
-            CompositePrivateKey compositePrivateKey = (CompositePrivateKey)keyPair.getPrivate();
-            System.out.print(compositePrivateKey);
-            System.out.print(compositePublicKey);
-            return keyPair;
-        }
 
         // Remove this if there is no reason to use raw Dilithium keys over ML-DSA
         if (algorithm.equals("dilithium-bcpqc")) {
