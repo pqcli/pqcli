@@ -11,6 +11,7 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jcajce.CompositePrivateKey;
 import org.bouncycastle.jcajce.spec.CompositeAlgorithmSpec;
 import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import picocli.CommandLine.Command;
@@ -23,7 +24,6 @@ import java.math.BigInteger;
 import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.concurrent.Callable;
 import java.util.Date;
@@ -44,8 +44,6 @@ public class CertificateGenerator implements Callable<Integer> {
     @Option(names = { "-subj", "-subject" }, description = "Certificate subject in OpenSSL format", required = false, defaultValue = "CN=PQCLI Test Certificate, C=DE")
     private String subject;
 
-    private static String compSigAlg0, compSigAlg1;
-
 	//public static void main(String[] args) {
     public Integer call() throws Exception {
         ProviderSetup.setupProvider();
@@ -62,25 +60,13 @@ public class CertificateGenerator implements Callable<Integer> {
             }
             subject = dnOpensslToX500(subject);
 
-            // composite algorithms are regarded a single algorithm for this code
-            String[] keyAlgorithms = getAlgorithmsFromStr(keyAlgorithm);
-            int nKeyAlgorithms = keyAlgorithms.length;
-            if (nKeyAlgorithms == 0) {
-                System.err.println("Error: No key algorithm specified!");
-                return 1;
-            }
-            if (nKeyAlgorithms > 2) {
-                System.err.println("Error: More than 2 key algorithms are not supported yet!");
-                return 1;
-            }
+            AlgorithmSet algorithmSet = new AlgorithmSet(keyAlgorithm);
+
             // Generate key pair(s) for the public key(s) of the certificate
-            AlgorithmWithParameters keyAlgorithm = AlgorithmWithParameters.getAlgorithmParts(keyAlgorithms[0]);
-            KeyPair keyPair = KeyGenerator.generateKeyPair(keyAlgorithms[0]);
-            AlgorithmWithParameters altKeyAlgorithm = null;
+            KeyPair keyPair = KeyGenerator.generateKeyPair(algorithmSet.getAlgorithms());
             KeyPair altKeyPair = null;
-            if (nKeyAlgorithms > 1) { // hybrid certificate
-                altKeyAlgorithm = AlgorithmWithParameters.getAlgorithmParts(keyAlgorithms[1]);
-                altKeyPair = KeyGenerator.generateKeyPair(keyAlgorithms[1]);
+            if (algorithmSet.isHybrid()) {
+                altKeyPair = KeyGenerator.generateKeyPair(algorithmSet.getAltAlgorithms());
             }
 
             boolean isSelfSigned = true; // TODO: Only if -ca is not set
@@ -88,38 +74,33 @@ public class CertificateGenerator implements Callable<Integer> {
             // Generate signing key pair
             // TODO: The signing key should be importable via the -cakey option
             KeyPair signatureKeyPair, altSignatureKeyPair = null;
+            AlgorithmSet signatureAlgorithmSet = algorithmSet;
             if (isSelfSigned) {
                 //signatureAlgorithm = getKeyAlgorithmForSignature(algorithmType);
                 signatureKeyPair = keyPair;
-                if (nKeyAlgorithms > 1) altSignatureKeyPair = altKeyPair;
+                if (algorithmSet.isHybrid()) altSignatureKeyPair = altKeyPair;
             } else {
-                signatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithm);
-            }
-            signatureAlgorithm = getSuitableSignatureAlgorithm(keyAlgorithm);
-            if (signatureAlgorithm.equals("Composite")) {
-                if (nKeyAlgorithms > 1) {
-                    throw new IllegalArgumentException("Composite and hybrid certificates can not be combined yet!");
+                signatureAlgorithmSet = new AlgorithmSet(signatureAlgorithm);
+                signatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithmSet.getAlgorithms());
+                if (signatureAlgorithmSet.isHybrid()) {
+                    altSignatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithmSet.getAltAlgorithms());
                 }
-                compSigAlg0 = getSuitableSignatureAlgorithm(keyAlgorithm.getCompositePart(0));
-                compSigAlg1 = getSuitableSignatureAlgorithm(keyAlgorithm.getCompositePart(1));
+            }
+
+            if (signatureAlgorithmSet.isHybrid()) {
+                altSignatureKeyPair = KeyGenerator.generateKeyPair(signatureAlgorithmSet.getAltAlgorithms());
             }
 
             // Create X.509 certificate
             X509Certificate certificate;
-            if (nKeyAlgorithms == 1) {
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, subject, validityDaysD);
-            } else {
-                String altSignatureAlgorithm = getSuitableSignatureAlgorithm(altKeyAlgorithm);
-                certificate = generateCertificate(signatureAlgorithm, signatureKeyPair, altSignatureAlgorithm, altSignatureKeyPair, subject, validityDaysD);
-            }
-
+            certificate = generateCertificate(signatureAlgorithmSet, signatureKeyPair, altSignatureKeyPair, subject, validityDaysD);
 
             // Save certificate and key(s) to files
             KeyGenerator.saveKeyToFile("private_key.pem", keyPair.getPrivate());
             KeyGenerator.saveKeyToFile("public_key.pem", keyPair.getPublic());
-            if (nKeyAlgorithms > 1) {
-                KeyGenerator.saveKeyToFile("private_key_alt.pem", altKeyPair.getPrivate());
-                KeyGenerator.saveKeyToFile("public_key_alt.pem", altKeyPair.getPublic());
+            if (algorithmSet.isHybrid()) {
+                KeyGenerator.saveKeyToFile("alt_private_key.pem", altKeyPair.getPrivate());
+                KeyGenerator.saveKeyToFile("alt_public_key.pem", altKeyPair.getPublic());
             }
             saveCertificateToFile("certificate.pem", certificate);
 
@@ -134,13 +115,9 @@ public class CertificateGenerator implements Callable<Integer> {
         return 0;
 	}
 	
-	 private static String getSuitableSignatureAlgorithm(AlgorithmWithParameters keyAlgorithm) {
+	private static String getSuitableSignatureAlgorithm(AlgorithmWithParameters keyAlgorithm) {
         String name = keyAlgorithm.algorithm;
         String params = keyAlgorithm.keySizeOrCurve;
-
-        if (name.contains("_")) { // composite algorithm
-            return "Composite";
-        }
 
         if (name.contains("rsa")) {
             boolean rsaPss = false;
@@ -197,10 +174,11 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair,
-                                                       String altSignatureAlgo, KeyPair altKeyPair,
+    private static X509Certificate generateCertificate(AlgorithmSet algorithmSet, KeyPair keyPair, KeyPair altKeyPair,
                                                        String subject, double validityDays)
             throws Exception {
+
+        /* Certificate fields */
         X500Name subjectName;
         try {
             subjectName = new X500Name(subject);
@@ -212,6 +190,7 @@ public class CertificateGenerator implements Callable<Integer> {
         Date notBefore = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000); // Current time - 1 day
         Date notAfter = new Date(System.currentTimeMillis() + 1000L * (long)(validityDays * 60.0 * 60.0 * 24.0)); // Current time + validityDays
 
+        /* Subject Public Key */
         X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
                 issuerName, serialNumber, notBefore, notAfter, subjectName, keyPair.getPublic());
 
@@ -221,28 +200,16 @@ public class CertificateGenerator implements Callable<Integer> {
             certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.subjectAltPublicKeyInfo, false, altKeyInfo);
         }
 
+        /* Extensions */
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.basicConstraints, true, new BasicConstraints(true));
         certBuilder.addExtension(org.bouncycastle.asn1.x509.Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
 
-        ContentSigner contentSigner;
-        if (signatureAlgorithm.equals("Composite")) {
-            if (!(keyPair.getPrivate() instanceof CompositePrivateKey)) {
-                throw new IllegalArgumentException("Composite signature algorithm requires a CompositePrivateKey");
-            }
-            CompositePrivateKey compPrivKey = (CompositePrivateKey)keyPair.getPrivate();
-
-            CompositeAlgorithmSpec compAlgSpec = new CompositeAlgorithmSpec.Builder()
-            .add(compSigAlg0)
-            .add(compSigAlg1)
-            .build();
-
-            contentSigner = new JcaContentSignerBuilder("Composite", compAlgSpec).setProvider("BC").build(compPrivKey);
-        } else {
-            contentSigner = new JcaContentSignerBuilder(signatureAlgorithm).setProvider("BC").build(keyPair.getPrivate());
-        }
+        /* Signing */
+        ContentSigner contentSigner = getSigner(algorithmSet.getAlgorithms(), keyPair);
+        
         X509CertificateHolder certHolder;
-        if (!altSignatureAlgo.isEmpty()) { // alternative signature algorithm is given
-            ContentSigner altContentSigner = new JcaContentSignerBuilder(altSignatureAlgo).setProvider("BC").build(altKeyPair.getPrivate());
+        if (altKeyPair != null && algorithmSet.isHybrid()) { // alternative signature algorithm is given
+            ContentSigner altContentSigner = getSigner(algorithmSet.getAltAlgorithms(), altKeyPair);
             certHolder = certBuilder.build(contentSigner, false, altContentSigner);
         } else {
             certHolder = certBuilder.build(contentSigner);
@@ -254,8 +221,33 @@ public class CertificateGenerator implements Callable<Integer> {
     /**
      * Generate a self-signed X.509 certificate with a single signature algorithm.
      */
-    private static X509Certificate generateCertificate(String signatureAlgorithm, KeyPair keyPair, String subject, double validityDays) throws Exception {
-        return generateCertificate(signatureAlgorithm, keyPair, "", null, subject, validityDays);
+    private static X509Certificate generateCertificate(AlgorithmSet algorithmSet, KeyPair keyPair, String subject, double validityDays) throws Exception {
+        return generateCertificate(algorithmSet, keyPair, null, subject, validityDays);
+    }
+
+    private static ContentSigner getSigner(AlgorithmWithParameters[] algos, KeyPair signingPair)
+            throws OperatorCreationException {
+        if (algos == null || algos.length == 0) {
+            throw new IllegalArgumentException("No signature algorithm specified");
+        }
+        if (algos.length == 1) {
+            String sigAlgo = getSuitableSignatureAlgorithm(algos[0]);
+            return new JcaContentSignerBuilder(sigAlgo).setProvider("BC").build(signingPair.getPrivate());
+        }
+        // length > 1: composite signature
+        if (!(signingPair.getPrivate() instanceof CompositePrivateKey)) {
+            throw new IllegalArgumentException("Composite signature algorithm requires a CompositePrivateKey");
+        }
+        CompositePrivateKey compPrivKey = (CompositePrivateKey)signingPair.getPrivate();
+
+        CompositeAlgorithmSpec.Builder builder = new CompositeAlgorithmSpec.Builder();
+        for (AlgorithmWithParameters algo : algos) {
+            String sigAlgo = getSuitableSignatureAlgorithm(algo);
+            builder.add(sigAlgo);
+        }
+        CompositeAlgorithmSpec compAlgSpec = builder.build();
+
+        return new JcaContentSignerBuilder("Composite", compAlgSpec).setProvider("BC").build(compPrivKey);
     }
 
     private static void saveCertificateToFile(String fileName, X509Certificate certificate) throws IOException, CertificateEncodingException {
@@ -265,14 +257,6 @@ public class CertificateGenerator implements Callable<Integer> {
             os.write(encodedCert.getBytes());
             os.write(("\n-----END CERTIFICATE-----\n").getBytes());
         }
-    }
-
-    private static String[] getAlgorithmsFromStr(String algorithms) {
-        String[] algos = algorithms.split(",");
-        return Arrays.stream(algos)
-                     .filter(s -> !s.trim().isEmpty()) // Remove empty and whitespace-only strings
-                     .toArray(String[]::new);
-
     }
 
     // Convert OpenSSL DN (/CN=Test/C=DE) to X.500 format (CN=Test,C=DE)

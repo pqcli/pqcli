@@ -24,26 +24,35 @@ This generates a complete .jar file in the `/target` dir.
 
 Examples
 
+Generate a self-signed PQC X.509 Certificate using a ML-DSA (Dilithium) key pair:
 ```
 java -jar .\pqcli.jar cert -newkey Dilithium:3 -subj CN=Solanum
 ```
-Generates a self-signed PQC X.509 Certificate using a Dilithium key pair.
 
-
+Generate a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm:
 ```
-java -jar .\pqcli.jar cert -newkey RSA,Dilithium:3
+java -jar .\pqcli.jar cert -newkey RSA,ML-DSA:3
 ```
-Generates a self-signed Hybrid (X.509 Section 9.8) Certificate with RSA as traditional and Dilithium as alternative signature algorithm.
 
+Generate a self-signed Composite Certificate with RSA and Dilithium:
+```
+java -jar .\pqcli.jar cert -newkey ML-DSA_RSA
+```
+
+Generate a SPHINCS+ (SLH-DSA) keypair with SHA2-192f parameters:
 ```
 java -jar .\pqcli.jar key -t slh-dsa:192f
 ```
-Generate a SPHINCS+ (SLH-DSA) keypair with SHA2-192f parameters.
 
+Examine an existing certificate in PEM format:
 ```
 java -jar .\pqcli.jar view certificate.pem
 ```
-Examine an existing certificate in PEM format.
+
+Non-practical example of a hybrid certificate that combines an RSA + ML-DSA composite key with another composite key of ECC, SLH-DSA, Ed448 and RSA again for good measure. Yep, we know...
+```
+java -jar .\target\pqcli-0.1.0.jar cert -newkey rsa:4096_mldsa,ec_slhdsa:256f_ed448_rsa:3072
+```
 
 ### CLI structure (not yet implemented, not yet final)
 

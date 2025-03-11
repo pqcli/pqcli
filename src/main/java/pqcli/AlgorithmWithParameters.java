@@ -1,49 +1,26 @@
 package pqcli;
+
+/* Represents a single algorithm and its parameters, e. g. "rsa:2048" */
 public class AlgorithmWithParameters {
     public final String algorithm;
     public final String keySizeOrCurve;
-    public final boolean isComposite;
 
-    public AlgorithmWithParameters(String algorithm, String keySizeOrCurve) {
-        this.algorithm = algorithm;
-        this.keySizeOrCurve = normalizeParameters(algorithm, keySizeOrCurve);
-        this.isComposite = algorithm.contains("_");
+    public AlgorithmWithParameters(String algorithmStr, String keySizeOrCurve) {
+        this.algorithm = normalizeAlgorithmName(algorithmStr);
+        this.keySizeOrCurve = normalizeParameters(this.algorithm, keySizeOrCurve);
     }
 
-    // this seems convoluted, consider refactoring so that CompositeAlgorithm is a separate class?
-    public AlgorithmWithParameters getCompositePart(int index) {
-        if (!isComposite) {
-            if (index == 0) return this;
-            throw new IllegalStateException("Algorithm is not composite");
+    public AlgorithmWithParameters(String algorithmStr) {
+        String[] parts = algorithmStr.split(":");
+        if (parts.length != 1 && parts.length != 2) {
+            throw new IllegalArgumentException("Invalid algorithm syntax: " + algorithmStr + " (Expected format: <algorithm>[:<keyLength>])");
         }
-        String[] components = algorithm.split("_");
-        if (index < 0 || index >= components.length) {
-            throw new IllegalArgumentException("Invalid index for composite algorithm: " + index);
-        }
-        return getAlgorithmParts(components[index]);
-    }
-
-    public static AlgorithmWithParameters getAlgorithmParts(String algorithm) {
-        if (algorithm.contains("_")) {
-            // is composite algorithm, e.g "mldsa:65_rsa:3072", need to normalize left and right components separately
-            String[] components = algorithm.split("_");
-            if (components.length != 2) {
-                throw new IllegalArgumentException("Invalid composite algorithm syntax: " + algorithm + " (Expected format: <algorithm>[:<keyLength>]_<algorithm2>[:<keyLength2>])");
-            }
-            AlgorithmWithParameters left = getAlgorithmParts(components[0]);
-            AlgorithmWithParameters right = getAlgorithmParts(components[1]);
-            return new AlgorithmWithParameters(left.toString() + "_" + right.toString(), "");
-        }
-        String[] parts = algorithm.split(":");
-        if (parts.length > 2) {
-            throw new IllegalArgumentException("Invalid algorithm syntax: " + algorithm + " (Expected format: <algorithm>[:<keyLength>])");
-        }
-        parts[0] = normalizeAlgorithmName(parts[0]);
+        this.algorithm = normalizeAlgorithmName(parts[0]);
         if (parts.length == 1) {
-            return new AlgorithmWithParameters(parts[0], getDefaultKeySize(parts[0]));
+            this.keySizeOrCurve = getDefaultKeySize(this.algorithm);
+        } else {
+            this.keySizeOrCurve = normalizeParameters(this.algorithm, parts[1]);
         }
-        AlgorithmWithParameters algorithmWithParams = new AlgorithmWithParameters(parts[0], parts[1]);
-        return algorithmWithParams;
     }
 
     @Override
@@ -53,7 +30,7 @@ public class AlgorithmWithParameters {
 
     private static String normalizeAlgorithmName(String algorithm) {
         // Normalizes the allowed input to a single lowercase variant per algorithm
-        String algo = algorithm.toLowerCase();
+        String algo = algorithm.trim().toLowerCase();
         switch (algo) {
             case "rsa":
             case "ec":
@@ -80,8 +57,9 @@ public class AlgorithmWithParameters {
 
     private static String normalizeParameters(String algorithm, String keySizeOrCurve) {
         // Normalize parameters where multiple values refer to the same parameters
+        String param = keySizeOrCurve.trim().toLowerCase();
         if (algorithm.equals("mldsa")) {
-            switch (keySizeOrCurve) {
+            switch (param) {
                 case "2":
                     return "44";
                 case "3":
@@ -89,10 +67,10 @@ public class AlgorithmWithParameters {
                 case "5":
                     return "87";
                 default:
-                    return keySizeOrCurve;
+                    return param;
             }
         } else if (algorithm.equals("ec")) {
-            switch (keySizeOrCurve) {
+            switch (param) {
                 case "secp256r1":
                 case "nistp256":
                 case "p256":
@@ -110,13 +88,14 @@ public class AlgorithmWithParameters {
                 case "p-521":
                     return "secp521r1";
                 default:
-                    return keySizeOrCurve;
+                    return param;
             }
         }
-        return keySizeOrCurve;
+        return param;
     }
 
     private static String getDefaultKeySize(String algorithm) {
+        // Expects that the algorithm name is already normalized
         switch (algorithm) {
             case "rsa":
                 return "3072";

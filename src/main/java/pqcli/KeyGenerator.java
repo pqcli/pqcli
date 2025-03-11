@@ -10,11 +10,11 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.util.Base64;
-import java.util.Map;
 import java.util.concurrent.Callable;
 
 import org.bouncycastle.jcajce.CompositePrivateKey;
@@ -34,11 +34,22 @@ public class KeyGenerator implements Callable<Integer> {
     public Integer call() throws Exception {
         ProviderSetup.setupProvider();
         try {
-            KeyPair keyPair = generateKeyPair(keyAlgorithm);
+            AlgorithmSet algorithmSet = new AlgorithmSet(keyAlgorithm);
 
+            KeyPair keyPair = generateKeyPair(algorithmSet.getAlgorithms());
             saveKeyToFile("private_key.pem", keyPair.getPrivate());
             saveKeyToFile("public_key.pem", keyPair.getPublic());
+            System.out.println(keyPair);
             System.out.println("Key pair saved successfully!");
+
+            if (algorithmSet.isHybrid()) {
+                KeyPair altKeyPair = generateKeyPair(algorithmSet.getAltAlgorithms());
+                saveKeyToFile("alt_private_key.pem", altKeyPair.getPrivate());
+                saveKeyToFile("alt_public_key.pem", altKeyPair.getPublic());
+                System.out.println(altKeyPair);
+                System.out.println("Alternative key pair saved successfully!");
+            }
+
             return 0;
         } catch (Exception e) {
             System.err.println("Error during key generation: " + e.getMessage());
@@ -46,63 +57,34 @@ public class KeyGenerator implements Callable<Integer> {
         }
     }
 
-    public static KeyPair generateKeyPair(String algorithmAndLength) 
+    public static KeyPair generateKeyPair(AlgorithmWithParameters[] algorithms)
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-        AlgorithmWithParameters algorithm = AlgorithmWithParameters.getAlgorithmParts(algorithmAndLength);
-        return generateKeyPair(algorithm);
+        if (algorithms == null || algorithms.length == 0) {
+            throw new IllegalArgumentException("No algorithm specified for key generation.");
+        }
+        if (algorithms.length == 1) {
+            return generateKeyPair(algorithms[0]);
+        }
+        // else: composite key
+        KeyPair[] keyPairs = new KeyPair[algorithms.length];
+        PrivateKey[] privateKeys = new PrivateKey[algorithms.length];
+        PublicKey[] publicKeys = new PublicKey[algorithms.length];
+        for (int i = 0; i < algorithms.length; i++) {
+            keyPairs[i] = generateKeyPair(algorithms[i]);
+            privateKeys[i] = keyPairs[i].getPrivate();
+            publicKeys[i] = keyPairs[i].getPublic();
+        }
+
+        // TODO: move to CompositePrivateKey(ASN1ObjectIdentifier algorithmIdentifier, PrivateKey... keys) constructor
+        // for the algorithms that have individual OIDs assigned
+        CompositePrivateKey compPrivKey = new CompositePrivateKey(privateKeys);
+        CompositePublicKey compPubKey = new CompositePublicKey(publicKeys);
+        return new KeyPair(compPubKey, compPrivKey);
     }
 
     public static KeyPair generateKeyPair(AlgorithmWithParameters algorithm) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-        if (algorithm.isComposite) {
-            return generateCompositeKeyPair(algorithm);
-        }
         return generateKeyPair(algorithm.algorithm, algorithm.keySizeOrCurve);
-    }
-
-    private static String[] compositeSignaturesOIDs = {
-        "2.16.840.1.114027.80.8.1.21", //id-MLDSA44-RSA2048-PSS-SHA256
-        "2.16.840.1.114027.80.8.1.22", //id-MLDSA44-RSA2048-PKCS15-SHA256
-        "2.16.840.1.114027.80.8.1.23", //id-MLDSA44-Ed25519-SHA512
-        "2.16.840.1.114027.80.8.1.24", //id-MLDSA44-ECDSA-P256-SHA256
-        "2.16.840.1.114027.80.8.1.26", //id-MLDSA65-RSA3072-PSS-SHA512
-        "2.16.840.1.114027.80.8.1.27", //id-MLDSA65-RSA3072-PKCS15-SHA512
-        "2.16.840.1.114027.80.8.1.28", //id-MLDSA65-ECDSA-P256-SHA512
-        "2.16.840.1.114027.80.8.1.29", //id-MLDSA65-ECDSA-brainpoolP256r1-SHA512
-        "2.16.840.1.114027.80.8.1.30", //id-MLDSA65-Ed25519-SHA512
-        "2.16.840.1.114027.80.8.1.31", //id-MLDSA87-ECDSA-P384-SHA512
-        "2.16.840.1.114027.80.8.1.32", //id-MLDSA87-ECDSA-brainpoolP384r1-SHA512
-        "2.16.840.1.114027.80.8.1.33", //id-MLDSA87-Ed448-SHA512
-    };
-
-    // see https://github.com/bcgit/bc-java/blob/main/core/src/main/java/org/bouncycastle/internal/asn1/misc/MiscObjectIdentifiers.java#L167
-    private static Map<String, String> compositeOIDLookup = Map.ofEntries(
-        Map.entry("mldsa:44_rsa:2048-pss", "2.16.840.1.114027.80.8.1.21"), //id-MLDSA44-RSA2048-PSS-SHA256
-        Map.entry("mldsa:44_rsa:2048", "2.16.840.1.114027.80.8.1.22"), //id-MLDSA44-RSA2048-PKCS15-SHA256
-        Map.entry("mldsa:44_ed25519", "2.16.840.1.114027.80.8.1.23"), //id-MLDSA44-Ed25519-SHA512
-        Map.entry("mldsa:44_ec:secp256r1", "2.16.840.1.114027.80.8.1.24"), //id-MLDSA44-ECDSA-P256-SHA256
-        Map.entry("mldsa:65_rsa:3072-pss", "2.16.840.1.114027.80.8.1.26"), //id-MLDSA65-RSA3072-PSS-SHA512
-        Map.entry("mldsa:65_rsa:3072", "2.16.840.1.114027.80.8.1.27"), //id-MLDSA65-RSA3072-PKCS15-SHA512
-        //Map.entry("mldsa:65_rsa:3072", "2.16.840.1.114027.80.8.1.7"), //id_MLDSA65_RSA3072_PKCS15_SHA512 (BC 1.79)
-        Map.entry("mldsa:65_ec:secp256r1", "2.16.840.1.114027.80.8.1.28"), //id-MLDSA65-ECDSA-P256-SHA512
-        Map.entry("mldsa:65_ec:brainpoolP256r1", "2.16.840.1.114027.80.8.1.29"), //id-MLDSA65-ECDSA-brainpoolP256r1-SHA512
-        Map.entry("mldsa:65_ed25519", "2.16.840.1.114027.80.8.1.30"), //id-MLDSA65-Ed25519-SHA512
-        Map.entry("mldsa:87_ec:secp384r1", "2.16.840.1.114027.80.8.1.31"), //id-MLDSA87-ECDSA-P384-SHA512
-        Map.entry("mldsa:87_ec:brainpoolP384r1", "2.16.840.1.114027.80.8.1.32"), //id-MLDSA87-ECDSA-brainpoolP384r1-SHA512
-        Map.entry("mldsa:87_ed448", "2.16.840.1.114027.80.8.1.33") //id-MLDSA87-Ed448-SHA512
-    );
-
-    private static KeyPair generateCompositeKeyPair(AlgorithmWithParameters algorithm) 
-            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-        // String oid = compositeOIDLookup.get(algorithm);
-        // if (oid == null) {
-        //     throw new IllegalArgumentException("The composite algorithm " + algorithm + " is not supported.");
-        // }
-        KeyPair kp0 = generateKeyPair(algorithm.getCompositePart(0));
-        KeyPair kp1 = generateKeyPair(algorithm.getCompositePart(1));
-        CompositePrivateKey compPrivKey = new CompositePrivateKey(kp0.getPrivate(), kp1.getPrivate());
-        CompositePublicKey compPubKey = new CompositePublicKey(kp0.getPublic(), kp1.getPublic());
-        return new KeyPair(compPubKey, compPrivKey);
     }
 
     /**
@@ -110,8 +92,6 @@ public class KeyGenerator implements Callable<Integer> {
      */
     public static KeyPair generateKeyPair(String algorithm, String curveOrKeyLength) 
             throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
-
-        curveOrKeyLength = curveOrKeyLength.toLowerCase();
 
         // Remove this if there is no reason to use raw Dilithium keys over ML-DSA
         if (algorithm.equals("dilithium-bcpqc")) {
