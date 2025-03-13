@@ -103,3 +103,7 @@ Ed448 | - | -
 
 Note: `dilithium-bcpqc` is the Dilithium implementation from the BouncyCastle Post-Quantum Security Provider, which BC 1.79+ no longer supports for certificate signing.
 It is provided for keypair generation and A/B testing only.
+
+## Acknowledgements
+
+PQCLI is partially funded as a part of the [Trustpoint](https://industrial-security.io) project sponsored by the German Federal Ministry of Education and Research.

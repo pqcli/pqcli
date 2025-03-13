@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: PQCLI
+message: >-
+  Please cite this software if you use it as part of your
+  research.
+type: software
+authors:
+  - given-names: Nino
+    family-names: Ricchizzi
+	affiliation: Lucerne University of Applied Sciences and Arts
+	orcid: 'https://orcid.org/0009-0007-4261-8772'
+  - given-names: Christian
+    family-names: Schwinne
+	affiliation: Hamm-Lippstadt University of Applied Sciences
+    orcid: 'https://orcid.org/0009-0003-9430-2201'
+repository-code: 'https://github.com/pqcli/pqcli'
+abstract: >-
+  Easy-to-use CLI wrapper for Bouncy Castle for PQC Hybrid
+  Certificate research 
+keywords:
+  - cli
+  - x509
+  - bouncycastle
+  - dilithium
+  - hybrid-certs
+license: MIT
+version: 0.1.0-pre
+date-released: '2025-03-13'
