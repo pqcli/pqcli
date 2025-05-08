@@ -3,6 +3,10 @@
 ![pqcli](.gh-assets/pqcli_banner.png)
 **CLI wrapper for BouncyCastle with a particular focus on post-quantum hybrid certificates.**
 
+[![Read the paper](https://img.shields.io/badge/Read_our_Research_Paper-preprint-yellow)](https://arxiv.org/abs/2505.04333)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 > [!CAUTION]
